@@ -1,0 +1,10 @@
+[Unit] 
+Description=Shell script to load on boot 
+After=syslog.target network.target 
+ 
+[Service] 
+Type=simple 
+ExecStart=/home/root/startup/bootscript.sh &
+ 
+[Install] 
+WantedBy=multi-user.target
