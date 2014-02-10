@@ -139,13 +139,14 @@ int millivolts;
 ///////////////////////////////////////////////////
 //////////   UART4 Spektrum Stuff   ///////////////
 ///////////////////////////////////////////////////
-#define RC_CHANNELS 9
+
 int rc_channels[RC_CHANNELS];
-char j[RC_CHANNELS*2+2]; // possible 9 channels, 2 bytes each. plus 2 preamble bytes
-int uart4_port,ret;
-int spektrum_means[] = {3070, 11262, 5118, 8498, 7166, 12288, 306, 38023,0};
-int spektrum_mins[] = {2352, 11262, 5836, 8498, 6448, 12288, 306, 38023,0};
-int spektrum_maxs[] = {3786, 11262, 4402, 8498, 7882, 12288, 306, 38023,0};
+int rc_maxes[RC_CHANNELS];
+int rc_mins[RC_CHANNELS];
+int tty4_fd;
+int rc_new_flag;
+
+
 
 
 
@@ -344,25 +345,6 @@ float getBattVoltage(){
 	return (float)raw_adc*11.0/1000.0; // time 11 for the voltage divider, divide by 1000 to go from mv to V
 }
 
-void* spektrum_read(void* ptr){
-	while (1) {
-		tcflush(uart4_port, TCIFLUSH);
- 		ret=read(uart4_port, &j, RC_CHANNELS*2+2);
-		
-		if(j[0]!=0xff)
-			printf("Spektrum Read Error\n");
-		else{
-			int i =0;
-			while(i<RC_CHANNELS){
-				rc_channels[i] = j[i*2+2]<<8 ^ j[i*2+3];
-				i++;
-			}
-			usleep(7000); //packets arrive ~11ms, sleep for a bit less
-		}
-	
-	}	
-	return NULL;
-}
 
 void* read_events(void* ptr){
 	int fd;
@@ -407,28 +389,238 @@ void* read_events(void* ptr){
 	return NULL;
 }
 
-int spektrum_input_raw(int channel){
-	return rc_channels[channel-1];
+///////////////////////////////////////////////////
+//////   Spektrum DSM2 RC Stuff   /////////////////
+///////////////////////////////////////////////////
+
+const char *byte_to_binary(int x){
+    static char b[9];
+    b[0] = '\0';
+
+    int z;
+    for (z = 128; z > 0; z >>= 1)
+    {
+        strcat(b, ((x & z) == z) ? "1" : "0");
+    }
+
+    return b;
 }
 
-float spektrum_input_scaled(int channel){
-	int ch = channel-1;
-	float x = (float) (rc_channels[ch] - spektrum_means[ch]);
-	x = 2.0*x/(spektrum_maxs[ch]-spektrum_mins[ch]);
-	if(fabs(x)>1.5)
-		return 0; //something went wrong, return 0 to be safe
-	else
-		return x;
-	
+float get_rc_channel(int ch){
+	if(ch<1 || ch > RC_CHANNELS){
+		printf("please enter a channel between 1 & RC_CHANNELS");
+		return -1;
+	}
+	float range = rc_maxes[ch-1]-rc_mins[ch-1];
+	if(range!=0) {
+		rc_new_flag = 0;
+		float center = (rc_maxes[ch-1]+rc_mins[ch-1])/2;
+		return 2*(rc_channels[ch-1]-center)/range;
+	}
+	else{
+		return 0;
+	}
+	//rc_new_flag = 0;
+
 }
+
+int get_rc_new_flag(){
+	return rc_new_flag;
+}
+
+void* uart4_checker(void *ptr){
+	//set up sart/stop bit and 115200 baud
+	struct termios config;
+	//memset(&config,0,sizeof(config));
+	config.c_iflag &= ~(BRKINT | ICRNL | IGNPAR);
+	config.c_iflag=0;
+    config.c_oflag=0;
+    config.c_cflag= CS8|CREAD|CLOCAL;           // 8n1, see termios.h for more info
+    config.c_lflag=0;
+    config.c_cc[VTIME]=5;
+	if ((tty4_fd = open ("/dev/ttyO4", O_RDWR | O_NOCTTY)) < 0) {
+		printf("error opening uart4\n");
+	}
+	if(cfsetispeed(&config, B115200) < 0) {
+		printf("cannot set uart4 baud rate\n");
+		return;
+	}
+	
+	if(tcsetattr(tty4_fd, TCSAFLUSH, &config) < 0) { 
+		printf("cannot set uart4 attributes\n");
+		return;
+	}
+	char buf[2];
+	int i;
+	while(get_state()!=EXITING){
+		read(tty4_fd, &buf, 2);
+		if((buf[1]==0xFF) && (buf[0]==0xFF)){ //check if end of packet
+			i=0;
+			
+			//printf(" 0xFF 0xFF");
+			read(tty4_fd, &buf, 2); //clear next two useless packets
+			if(buf[1] != 0xFF){
+				//printf(" 0xFF");
+				//printf(byte_to_binary(buf[1]));
+			}
+			else{//out of sync, end packet 0xFF FF FF not recognized
+				read(tty4_fd, &buf, 1);
+				//i=RC_CHANNELS+1;
+			}
+			//printf("\n");	
+		}
+		else if(i>=RC_CHANNELS){//something went wrong get back in sync
+			printf("\nuart4 packet sync error\n");
+			do{
+				read(tty4_fd, &buf, 1);
+				if(buf[0]==0xFF){
+					read(tty4_fd, &buf, 1);
+				}
+				read(tty4_fd, &buf, 2);
+				i=0;
+			} while (buf[0]!=0xFF);//congrats, two 0xFF packets in a row, new packet begins
+		}
+		else{
+			//every pair of bytes is the raw integer for each channel
+			rc_channels[i] = buf[0]<<8 ^ buf[1];
+			rc_new_flag = 1; //new data to be read!!
+			i++;
+			
+			/*
+			printf("%d  ",rc_channels[i]);
+			//printf("  ");
+			printf(byte_to_binary(buf[0]));
+			//printf(" ");
+			printf(byte_to_binary(buf[1]));
+			printf("   ");
+			*/
+		}
+		usleep(1000);
+		
+	}
+	printf("closing uart4 thread\n");
+	close(tty4_fd);
+	return 0;
+}
+
+int calibrate_spektrum(){
+	printf("\n\nTurn on your Transmitter and connect receiver.\n");
+	printf("Move all sticks and switches through their range of motion.\n");
+	printf("Measured raw min/max positions will display below.\n");
+	printf("Hit ctrl_c when done.\n");
+	printf("\nWaiting on Radio Connection. Satellite receiver LED should illuminate.\n");
+	printf("Ch: current min max\n");
+	
+	//start the signal handler to stop calibrating and write to file
+	//register_sig_handler();
+	
+	//fire up the reading thread
+	set_state(RUNNING);
+	
+	while(get_rc_new_flag()==0){
+		usleep(100000); //wait for data to start
+		if (get_state()==EXITING){
+			//return 0;
+			break;
+		}
+	}
+	usleep(100000); //wait for packet to finish
+	//start mins at current value
+	int i,j,k;
+	for(j=0;j<RC_CHANNELS;j++){
+		rc_mins[j]=rc_channels[j];
+		rc_maxes[j]=rc_channels[j];
+	}
+	
+	while(get_state()!=EXITING){
+		if (get_rc_new_flag() == 0){
+			if (k==1){
+				set_state(EXITING); 
+				printf("\nRadio Disconnected\n");
+			}
+			else k=1;
+		}
+		
+		//once data starts coming in, update mins and maxes
+		for(i=0;i<10;i++){
+			//printf("%d ", get_rc_new_flag());
+			printf("\r");
+			//fflush(stdout);
+			for(j=0;j<RC_CHANNELS;j++){
+				if(get_state()==EXITING){
+					break; //since we are in a for loop, check state frequently
+				}
+				else if(rc_channels[j]>rc_maxes[j])
+					rc_maxes[j]=rc_channels[j];
+				else if(rc_channels[j]<rc_mins[j])
+					rc_mins[j]=rc_channels[j];
+				
+				if(rc_channels[j] != 0){ //show only non-zero channels
+					printf("ch%d %d %d %d  ", j+1, rc_channels[j], rc_mins[j], rc_maxes[j]);
+				}
+				rc_new_flag = 0;
+			}
+			usleep(100000);
+		}
+		
+		
+		
+	}
+	//if it looks like new data come in, write calibration file
+	if((rc_mins[0]!=0)&&(rc_mins[0]!=rc_maxes[0])){ 
+		int fd;
+		fd = open(SPEKTRUM_CAL_FILE, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+
+		if (fd < 0) {
+			printf("\n error opening calibration file for writing\n");
+			return -1;
+		}
+		char buff[64];
+		for(j=0;j<RC_CHANNELS;j++){
+				sprintf(buff, "%d %d\n", rc_mins[j], rc_maxes[j]);
+				write(fd, buff, strlen(buff));
+		}
+		close(fd);
+		printf("\n new calibration file written\n");
+	}
+	
+	return 0;
+}
+
+int initialize_spektrum(){
+	signal(SIGINT, ctrl_c);	//signal catcher calls cleanup function on exit
+	//if calibration file exists, load it and start spektrum thread
+	FILE *cal;
+	cal = fopen(SPEKTRUM_CAL_FILE, "r");
+	if (cal < 0) {
+		printf("\nSpektrum Calibration File Doesn't Exist Yet\n");
+		printf("Use calibrate_spektrum example to create one\n");
+		return -1;
+	}
+	else{
+		int i;
+		for(i=0;i<RC_CHANNELS;i++){
+			fscanf(cal,"%d %d", &rc_mins[i],&rc_maxes[i]);
+			//printf("%d %d\n", rc_mins[i],rc_maxes[i]);
+		}
+		printf("Spektum Calibration Loaded\n");
+	}
+	fclose(cal);
+	pthread_t uart4_thread;
+	pthread_create(&uart4_thread, NULL, uart4_checker, (void*) NULL);
+	printf("Spektrum Thread Started\n");
+	return 0;
+}
+
 
 void ctrl_c(int signo){
 	if (signo == SIGINT){
+		set_state(EXITING);
 		printf("\nreceived SIGINT Ctrl-C\n");
-		//set_state(EXITING);
+		//sleep(1);
 		// in case of ctrl-c signal, shut down cleanly
-		cleanup_cape();
-		exit(EXIT_SUCCESS);
+		//cleanup_cape();
+		//exit(EXIT_SUCCESS);
  	}
 }
 

@@ -69,6 +69,17 @@ enum state_t get_state();
 int set_state(enum state_t);
 
 void ctrl_c(int signo);
+
+#define RC_CHANNELS 9
+#define SPEKTRUM_CAL_FILE "/home/root/cape_calibration/spektrum.cal"
+int calibrate_spektrum();
+int initialize_spektrum();
+float get_rc_channel(int ch);
+
+int get_rc_new_flag();
+const char *byte_to_binary(int x);
+void cleanup(int signo);
+void* uart4_checker(void *ptr);
 #endif
 
 
