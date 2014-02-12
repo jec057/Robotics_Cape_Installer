@@ -329,6 +329,7 @@ int main(){
 	//pthread_join(slow_thread, NULL);
 
 	while(get_state()!=EXITING){
+		sleep(1);
 	}
 
 	//nothing get executed here until runTrue == 0 which terminates the threads

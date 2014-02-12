@@ -207,7 +207,7 @@ int initialize_cape(){
 	for(i=0; i<3; i++){
 		strcpy(path, encoder_files[i]);
 		encoder_pointers[i] = fopen(path, "r");
-		if(encoder_pointers[i] == -1){
+		if(encoder_pointers[i] <0){
 			printf("Encoder Driver not loaded\n");
 			printf("check is tieqep.ko is in the bootscript or load it manually.\n");
 			return -1;
@@ -219,14 +219,7 @@ int initialize_cape(){
 
 	
 	//  Spektrum RC setup on uart4
-/* 	uart4_port = open("/dev/ttyO4", O_RDWR | O_NOCTTY);
-	if ((uart4_port) < 0){
-		printf("error opening uart4 for Spektrum\n");}
-	else{
-		printf("Enabling Spektrum Radio Control\n");
-		pthread_t spektrum_thread;
-		pthread_create(&spektrum_thread, NULL, spektrum_read, (void*) NULL);
-	} */
+	// initialize_spektrum();
 	
 	printf("Starting Event Handler\n");
 	pthread_t event_thread;
@@ -391,6 +384,7 @@ void* read_events(void* ptr){
 				break;
 			}
 		}
+		usleep(100000);
     }
 	return NULL;
 }
@@ -618,6 +612,10 @@ int initialize_spektrum(){
 	return 0;
 }
 
+
+//////////////////////////////////////////////
+/////// Exiting and closing handlers  ////////
+//////////////////////////////////////////////
 
 void ctrl_c(int signo){
 	if (signo == SIGINT){
