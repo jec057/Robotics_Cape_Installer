@@ -4,7 +4,7 @@ After=syslog.target network.target
  
 [Service] 
 Type=simple 
-ExecStart=/home/root/startup/bootscript.sh &
+ExecStart=/usr/bin/bootscript.sh
  
 [Install] 
 WantedBy=multi-user.target

@@ -24,11 +24,13 @@ cp install_files/uEnv.txt /media/BEAGLEBONE/
 
 
 echo "Enabling Boot Script"
-cp -r startup /home/root/
-chmod u+x /home/root/startup/bootscript.sh
+#cp -r startup /home/root/
+cp -r install_files/bootscript.sh /usr/bin/
+chmod u+x /usr/bin/bootscript.sh
 cp install_files/bootscript.service /lib/systemd/
 rm /etc/systemd/system/bootscript.service
 ln /lib/systemd/bootscript.service /etc/systemd/system/bootscript.service
+systemctl daemon-reload 
 systemctl enable bootscript.service 
 
 
@@ -39,6 +41,8 @@ cp $INSTALL_DIR/examples/bare_minimum/bare_minimum 	/usr/bin/
 cp $INSTALL_DIR/examples/test_buttons/test_buttons 	/usr/bin/
 cp $INSTALL_DIR/examples/test_encoders/test_encoders /usr/bin/
 cp $INSTALL_DIR/examples/test_motors/test_motors 	/usr/bin/
+cp $INSTALL_DIR/examples/test_spektrum/test_spektrum 	/usr/bin/
+cp $INSTALL_DIR/examples/calibrate_spektrum/calibrate_spektrum 	/usr/bin/
 chmod 755 /usr/bin/*
 
 echo "Installing Supporting Libraries"

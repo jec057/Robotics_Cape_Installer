@@ -200,15 +200,21 @@ int initialize_cape(){
 		set_motor(i+1,0); //set motor to free-spin
 	};
  
-	printf("PWM Initialized\n");
 	
+	
+	printf("Initializing eQep Encoders\n");
 	//open encoder file pointers to make sure they work
 	for(i=0; i<3; i++){
 		strcpy(path, encoder_files[i]);
 		encoder_pointers[i] = fopen(path, "r");
+		if(encoder_pointers[i] == -1){
+			printf("Encoder Driver not loaded\n");
+			printf("check is tieqep.ko is in the bootscript or load it manually.\n");
+			return -1;
+		}
 		fclose(encoder_pointers[i]);
 	};
-	printf("eQep Encoders Initialized\n");
+	
 	
 
 	
