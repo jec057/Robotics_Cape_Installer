@@ -8,7 +8,8 @@ Installation Instructions:
 
 Log in as root and execute the install script and reboot
 root@beaglebone:~#cd libraries
-root@beaglebone:~/libraries# bash install.sh
+root@beaglebone:~/libraries# make clean
+root@beaglebone:~/libraries# make install
 If all went well, you now have shared libraries
 located in /usr/lib and /usr/include
 

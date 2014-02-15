@@ -20,23 +20,9 @@
 
 
 #include "SimpleGPIO.h"
+#include "mpu9150.h"
 
-/* #define SYSFS_GPIO_DIR "/sys/class/gpio"
-#define POLL_TIMEOUT (3 * 1000) // 3 seconds
-#define MAX_BUF 64
-#define SYSFS_OMAP_MUX_DIR "/sys/kernel/debug/omap_mux/" */
 
-/* typedef enum {
-	INPUT_PIN,
-	OUTPUT_PIN
-}PIN_DIRECTION;
-
-typedef enum {
-	LOW,
-	HIGH
-} PIN_VALUE;
-
- */
 
 //User available functions
 int initialize_cape();
@@ -82,11 +68,3 @@ void cleanup(int signo);
 void* uart4_checker(void *ptr);
 #endif
 
-
-/* 
-//supporting functions
-int gpio_fd_open(unsigned int gpio);
-int gpio_set_value;
-int gpio_set_value(unsigned int gpio, PIN_VALUE value);
-int gpio_fd_close(int fd);
-int gpio_omap_mux_setup(const char *omap_pin0_name, const char *mode); */

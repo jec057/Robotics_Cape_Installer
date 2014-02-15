@@ -16,6 +16,7 @@ enum state_t get_state(){
 
 int set_state(enum state_t new_state){
 	state = new_state;
+	return 0;
 }
 
 
@@ -443,12 +444,12 @@ void* uart4_checker(void *ptr){
 	}
 	if(cfsetispeed(&config, B115200) < 0) {
 		printf("cannot set uart4 baud rate\n");
-		return;
+		return NULL;
 	}
 	
 	if(tcsetattr(tty4_fd, TCSAFLUSH, &config) < 0) { 
 		printf("cannot set uart4 attributes\n");
-		return;
+		return NULL;
 	}
 	char buf[2];
 	int i;

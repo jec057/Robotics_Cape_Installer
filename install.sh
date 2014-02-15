@@ -48,7 +48,8 @@ chmod 755 /usr/bin/*
 echo "Installing Supporting Libraries"
 cp -r libraries/ $INSTALL_DIR
 cd $INSTALL_DIR/libraries
-bash install.sh > /dev/null
+make clean
+make install
 
 echo
 echo "Robotics Cape Configured and Installed"
