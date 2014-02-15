@@ -11,7 +11,7 @@ int main(){
 	setRED(HIGH);
 
 	printf("\n\nRaw data for encoders 1,2,3\n");
-	int i;
+
 	while(get_state() != EXITING){
 		//printf("\r                        "); //clear console line
 		//fflush(stdout);

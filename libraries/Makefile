@@ -41,7 +41,8 @@ install:
 	@install -m 0755 $(INCLUDES) $(INCLUDE_DIR)
 	@install -m 0755 $(TARGET) $(INSTALL_DIR)
 	@install -m 0755 $(OBJECTS) $(INSTALL_DIR)
-	@echo "robotics_cape.so installed to $(INSTALL_DIR)"
+	cp $(INSTALL_DIR)/$(TARGET) $(INSTALL_DIR)/lib$(TARGET)
+	@echo "$(TARGET) installed to $(INSTALL_DIR)"
 	@echo
 	
 
