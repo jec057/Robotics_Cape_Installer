@@ -66,5 +66,7 @@ int get_rc_new_flag();
 const char *byte_to_binary(int x);
 void cleanup(int signo);
 void* uart4_checker(void *ptr);
+
+int initialize_imu(int sample_rate);
 #endif
 

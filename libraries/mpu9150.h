@@ -28,7 +28,7 @@
 #include "linux_glue.h"
 #include "inv_mpu.h"
 #include "inv_mpu_dmp_motion_driver.h"
-#include "mpu9150.h"
+//#include "mpu9150.h"
 
 #define MAG_SENSOR_RANGE 	4096
 #define ACCEL_SENSOR_RANGE 	32000
@@ -77,6 +77,13 @@ int mpu9150_read_dmp(mpudata_t *mpu);
 int mpu9150_read_mag(mpudata_t *mpu);
 void mpu9150_set_accel_cal(caldata_t *cal);
 void mpu9150_set_mag_cal(caldata_t *cal);
+
+int data_ready();
+void calibrate_data(mpudata_t *mpu);
+void tilt_compensate(quaternion_t magQ, quaternion_t unfusedQ);
+int data_fusion(mpudata_t *mpu);
+unsigned short inv_row_2_scale(const signed char *row);
+unsigned short inv_orientation_matrix_to_scalar(const signed char *mtx);
 
 #endif /* MPU9150_H */
 

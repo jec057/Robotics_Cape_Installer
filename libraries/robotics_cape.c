@@ -651,3 +651,102 @@ int cleanup_cape(){
 	return 0;
 }
 
+int initialize_imu(int sample_rate){
+
+	signed char gyro_orientation[9] = { 1, 0, 0,
+                                        0, 1, 0,
+                                        0, 0, 1 };
+
+	linux_set_i2c_bus(1);
+
+	printf("\nInitializing IMU .");
+	fflush(stdout);
+
+	if (mpu_init(NULL)) {
+		printf("\nmpu_init() failed\n");
+		return -1;
+	}
+
+	printf(".");
+	fflush(stdout);
+
+	if (mpu_set_sensors(INV_XYZ_GYRO | INV_XYZ_ACCEL | INV_XYZ_COMPASS)) {
+		printf("\nmpu_set_sensors() failed\n");
+		return -1;
+	}
+
+	printf(".");
+	fflush(stdout);
+
+	if (mpu_configure_fifo(INV_XYZ_GYRO | INV_XYZ_ACCEL)) {
+		printf("\nmpu_configure_fifo() failed\n");
+		return -1;
+	}
+
+	printf(".");
+	fflush(stdout);
+	
+	if (mpu_set_sample_rate(sample_rate)) {
+		printf("\nmpu_set_sample_rate() failed\n");
+		return -1;
+	}
+
+	printf(".");
+	fflush(stdout);
+	
+	if(sample_rate > 100){
+		if(mpu_set_compass_sample_rate(100)){
+			printf("\nmpu_set_compass_sample_rate() failed\n");
+			return -1;}
+	}		
+	else{
+		if(mpu_set_compass_sample_rate(sample_rate)){
+			printf("\nmpu_set_compass_sample_rate() failed\n");
+			return -1;}
+	}
+
+	printf(".");
+	fflush(stdout);
+
+	if (dmp_load_motion_driver_firmware()) {
+		printf("\ndmp_load_motion_driver_firmware() failed\n");
+		return -1;
+	}
+
+	printf(".");
+	fflush(stdout);
+
+	if (dmp_set_orientation(inv_orientation_matrix_to_scalar(gyro_orientation))) {
+		printf("\ndmp_set_orientation() failed\n");
+		return -1;
+	}
+
+	printf(".");
+	fflush(stdout);
+
+  	if (dmp_enable_feature(DMP_FEATURE_6X_LP_QUAT | DMP_FEATURE_SEND_RAW_ACCEL 
+						| DMP_FEATURE_SEND_CAL_GYRO | DMP_FEATURE_GYRO_CAL)) {
+		printf("\ndmp_enable_feature() failed\n");
+		return -1;
+	}
+
+	printf(".");
+	fflush(stdout);
+ 
+	if (dmp_set_fifo_rate(sample_rate)) {
+		printf("\ndmp_set_fifo_rate() failed\n");
+		return -1;
+	}
+
+	printf(".");
+	fflush(stdout);
+
+	if (mpu_set_dmp_state(1)) {
+		printf("\nmpu_set_dmp_state(1) failed\n");
+		return -1;
+	}
+
+	printf("\nIMU Initialized \n");
+
+	return 0;
+}
