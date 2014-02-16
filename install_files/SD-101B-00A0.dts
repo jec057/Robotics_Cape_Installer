@@ -235,11 +235,11 @@
 		__overlay__ {
 			pwm_test_P9_31 {
 				compatible	= "pwm_test";
-				pwms 		= <&ehrpwm0 0 500000 1>;
+				pwms 		= <&ehrpwm0 0 0 1>;
 				pwm-names 	= "PWM_P9_31";
 			    pinctrl-names	= "default";
 			    pinctrl-0	= <&pwm_P9_31>;
-				enabled		= <1>;
+				enabled		= <0>;
 				duty		= <0>;
 				status 		= "okay";
 			};
@@ -251,11 +251,11 @@
 		__overlay__ {
 			pwm_test_P9_29 {
 				compatible	= "pwm_test";
-				pwms 		= <&ehrpwm0 1 500000 1>;
+				pwms 		= <&ehrpwm0 1 0 1>;
 				pwm-names 	= "PWM_P9_29";
 			    pinctrl-names	= "default";
 			    pinctrl-0	= <&pwm_P9_29>;
-				enabled		= <1>;
+				enabled		= <0>;
 				duty		= <0>;
 				status 		= "okay";
 			};
@@ -266,11 +266,11 @@
 		__overlay__ {
 			pwm_test_P9_16 {
 				compatible	= "pwm_test";
-				pwms 		= <&ehrpwm1 1 500000 1>;
+				pwms 		= <&ehrpwm1 1 0 1>;
 				pwm-names 	= "PWM_P9_16";
 			    pinctrl-names	= "default";
 			    pinctrl-0	= <&pwm_P9_16>;
-				enabled		= <1>;
+				enabled		= <0>;
 				duty		= <0>;
 				status 		= "okay";
 			};
@@ -281,11 +281,11 @@
 		__overlay__ {
 			pwm_test_P9_14 {
 				compatible	= "pwm_test";
-				pwms 		= <&ehrpwm1 0 500000 1>;
+				pwms 		= <&ehrpwm1 0 0 1>;
 				pwm-names 	= "PWM_P9_14";
 			    pinctrl-names	= "default";
 			    pinctrl-0	= <&pwm_P9_14>;
-				enabled		= <1>;
+				enabled		= <0>;
 				duty		= <0>;
 				status 		= "okay";
 			};
@@ -297,13 +297,13 @@
 		__overlay__ {
 			pwm_test_P8_19 {
 				compatible	= "pwm_test";
-				pwms 		= <&ehrpwm2 0 500000 1>;
+				pwms 		= <&ehrpwm2 0 0 1>;
 				pwm-names 	= "PWM_P8_19";
 
 				pinctrl-names	= "default";
 				pinctrl-0	= <&pwm_P8_19>;
 
-				enabled		= <1>;
+				enabled		= <0>;
 				duty		= <0>;
 				status 		= "okay";
 			};
@@ -315,13 +315,13 @@
 		__overlay__ {
 			pwm_test_P8_13 {
 				compatible	= "pwm_test";
-				pwms 		= <&ehrpwm2 1 500000 1>;
+				pwms 		= <&ehrpwm2 1 0 1>;
 				pwm-names 	= "PWM_P8_13";
 
 				pinctrl-names	= "default";
 				pinctrl-0	= <&pwm_P8_13>;
 
-				enabled		= <1>;
+				enabled		= <0>;
 				duty		= <0>;
 				status 		= "okay";
 			};
@@ -333,7 +333,6 @@
 	fragment@15 {
     	target = <&eqep0>;
     	__overlay__ {
-			compatible	= "tieqep";
             pinctrl-names = "default";
             pinctrl-0 = <&pinctrl_eqep0>;
             
@@ -353,7 +352,6 @@
     fragment@16 {
     	target = <&eqep1>;
     	__overlay__ {
-			compatible	= "tieqep";
             pinctrl-names = "default";
             pinctrl-0 = <&pinctrl_eqep1>;
             
@@ -371,7 +369,6 @@
     fragment@17 {
     	target = <&eqep2>;
     	__overlay__ {
-			compatible	= "tieqep";
             pinctrl-names = "default";
             pinctrl-0 = <&pinctrl_eqep2>;
             

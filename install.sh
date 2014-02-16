@@ -25,13 +25,13 @@ cp install_files/uEnv.txt /media/BEAGLEBONE/
 echo "Copying new pwm_test kernel Module"
 cp /lib/modules/3.8.13/kernel/drivers/pwm/pwm_test.ko /lib/modules/3.8.13/kernel/drivers/pwm/pwm_test.ko.old
 cp install_files/pwm_test.ko /lib/modules/3.8.13/kernel/drivers/pwm/
-cp install_files/tieqep.ko /lib/modules/3.8.13/kernel/drivers/pwm/
+cp install_files/tieqep.ko /usr/bin/
 
 
 
 echo "Enabling Boot Script"
 #cp -r startup /home/root/
-cp -r install_files/bootscript.sh /usr/bin/
+cp -f install_files/bootscript.sh /usr/bin/
 chmod u+x /usr/bin/bootscript.sh
 cp install_files/bootscript.service /lib/systemd/
 rm /etc/systemd/system/bootscript.service
@@ -39,6 +39,12 @@ ln /lib/systemd/bootscript.service /etc/systemd/system/bootscript.service
 systemctl daemon-reload 
 systemctl enable bootscript.service 
 
+echo "Installing Supporting Libraries"
+cp -r libraries/ $INSTALL_DIR
+cd $INSTALL_DIR/libraries
+#make clean
+make install
+cd ../
 
 echo "Installing Examples"
 cp -r examples/ $INSTALL_DIR
@@ -49,13 +55,20 @@ cp $INSTALL_DIR/examples/test_encoders/test_encoders /usr/bin/
 cp $INSTALL_DIR/examples/test_motors/test_motors 	/usr/bin/
 cp $INSTALL_DIR/examples/test_spektrum/test_spektrum 	/usr/bin/
 cp $INSTALL_DIR/examples/calibrate_spektrum/calibrate_spektrum 	/usr/bin/
+cp $INSTALL_DIR/examples/test_esc/test_esc				/usr/bin/
+cp $INSTALL_DIR/examples/calibrate_esc/calibrate_esc	/usr/bin/
 chmod 755 /usr/bin/*
 
-echo "Installing Supporting Libraries"
-cp -r libraries/ $INSTALL_DIR
-cd $INSTALL_DIR/libraries
-make clean
-make install
+
+
+echo "which program should run on boot?"
+select bfn in "balance" "fly" "none"; do
+    case $bfn in
+        balance ) echo "balance" >> /usr/bin/bootscript.sh; break;;
+        fly ) echo "fly" >> /usr/bin/bootscript.sh; break;;
+		none ) exit;;
+    esac
+done
 
 echo
 echo "Robotics Cape Configured and Installed"

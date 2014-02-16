@@ -114,7 +114,7 @@ char pwm_files[][MAX_BUF] = {"/sys/devices/ocp.3/pwm_test_P9_31.12/",
 };
 FILE *pwm_duty_pointers[6]; //store pointers to 6 pwm channels for frequent writes
 int pwm_period_ns=0; //stores current pwm period in nanoseconds
-#define MOTOR_DEFAULT_PERIOD_NS 50000 //20khz
+#define MOTOR_DEFAULT_PERIOD_NS 25000 //40khz
 #define ESC_DEFAULT_PERIOD_NS 10000000 //10ms, want to be longer than update interval
 
 ///////////////////////////////////////////////////
