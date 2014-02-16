@@ -22,6 +22,11 @@ mount /dev/mmcblk0p1 /media/BEAGLEBONE >/dev/null
 cp /media/BEAGLEBONE/uEnv.txt /media/BEAGLEBONE/uEnv.txt.old
 cp install_files/uEnv.txt /media/BEAGLEBONE/
 
+echo "Copying new pwm_test kernel Module"
+cp /lib/modules/3.8.13/kernel/drivers/pwm/pwm_test.ko /lib/modules/3.8.13/kernel/drivers/pwm/pwm_test.ko.old
+cp install_files/pwm_test.ko /lib/modules/3.8.13/kernel/drivers/pwm/
+
+
 
 echo "Enabling Boot Script"
 #cp -r startup /home/root/
