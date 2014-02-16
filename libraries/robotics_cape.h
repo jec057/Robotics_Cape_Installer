@@ -21,12 +21,20 @@
 
 #include "SimpleGPIO.h"
 #include "mpu9150.h"
+#define RC_CHANNELS 9
+#define SPEKTRUM_CAL_FILE "/home/root/cape_calibration/spektrum.cal"
+
+#define DEFAULT_MIN_PULSE	 1000000
+#define DEFAULT_MAX_PULSE	 2000000
+
 
 
 
 //User available functions
 int initialize_cape();
 int set_motor(int motor, float duty);
+int set_esc(int esc, float normalized_duty);
+int kill_esc();
 int set_pwm_period_ns(int period);
 long int get_encoder(int encoder);
 int getStartBTN();
@@ -56,8 +64,6 @@ int set_state(enum state_t);
 
 void ctrl_c(int signo);
 
-#define RC_CHANNELS 9
-#define SPEKTRUM_CAL_FILE "/home/root/cape_calibration/spektrum.cal"
 int calibrate_spektrum();
 int initialize_spektrum();
 float get_rc_channel(int ch);
@@ -66,5 +72,7 @@ int get_rc_new_flag();
 const char *byte_to_binary(int x);
 void cleanup(int signo);
 void* uart4_checker(void *ptr);
+
+int initialize_imu(int sample_rate);
 #endif
 

@@ -41,6 +41,7 @@ int set_state(enum state_t new_state){
 //Spektrum UART4 RX must be remuxed to gpio output temporarily for pairing
 #define PAIRING_PIN 30 //P9.11 gpio0.30
 #define NUM_OUT_PINS 15
+
 unsigned int out_gpio_pins[] = {MDIR1A, MDIR1B, MDIR2A, MDIR2B, 
 								 MDIR3A, MDIR3B, MDIR4A, MDIR4B, 
 								 MDIR5A, MDIR5B, MDIR5A, MDIR5B,
@@ -103,7 +104,7 @@ int get_select_button(){
 ///////////////////////////////////////////////////
 ////////////////////  PWM PINS   //////////////////
 ///////////////////////////////////////////////////
-#define DEFAULT_PERIOD_NS    500000  //pwm period nanoseconds: 20khz
+//#define DEFAULT_PERIOD_NS    500000  //pwm period nanoseconds: 20khz
 char pwm_files[][MAX_BUF] = {"/sys/devices/ocp.3/pwm_test_P9_31.12/",
 							 "/sys/devices/ocp.3/pwm_test_P9_29.13/",
 							 "/sys/devices/ocp.3/pwm_test_P9_14.15/",
@@ -112,7 +113,9 @@ char pwm_files[][MAX_BUF] = {"/sys/devices/ocp.3/pwm_test_P9_31.12/",
 							 "/sys/devices/ocp.3/pwm_test_P8_13.17/"
 };
 FILE *pwm_duty_pointers[6]; //store pointers to 6 pwm channels for frequent writes
-int pwm_period_ns; //stores current pwm period in nanoseconds
+int pwm_period_ns=0; //stores current pwm period in nanoseconds
+#define MOTOR_DEFAULT_PERIOD_NS 50000 //20khz
+#define ESC_DEFAULT_PERIOD_NS 10000000 //10ms, want to be longer than update interval
 
 ///////////////////////////////////////////////////
 /////////////   eQEP Encoder Stuff   //////////////
@@ -164,11 +167,11 @@ int initialize_cape(){
 	int i = 0; //general use counter
 	for(i=0; i<NUM_OUT_PINS; i++){
 		gpio_export(out_gpio_pins[i]);
-	};
+	}
 	printf("Setting GPIO Direction\n");
 	for(i=0; i<NUM_OUT_PINS; i++){
 		gpio_set_dir(out_gpio_pins[i], OUTPUT_PIN);
-	};
+	}
 	
 	//set up function pointers for button and interrupt events
 	set_imu_interrupt_func(&null_func);
@@ -189,20 +192,21 @@ int initialize_cape(){
 		fprintf(fd,"%c",'0');
 		fflush(fd);
 		fclose(fd);
-	};
+	}
+
 	//set the pwm period in nanoseconds
-	set_pwm_period_ns(DEFAULT_PERIOD_NS);
+	//set_pwm_period_ns(DEFAULT_PERIOD_NS);
 	
 	//leave duty open for future writes
 	for(i=0; i<6; i++){
 		strcpy(path, pwm_files[i]);
 		strcat(path, "duty");
 		pwm_duty_pointers[i] = fopen(path, "a");
-		set_motor(i+1,0); //set motor to free-spin
-	};
+		//set_motor(i+1,0); //set motor to free-spin
+	}
+	
+	//kill_esc();
  
-	
-	
 	printf("Initializing eQep Encoders\n");
 	//open encoder file pointers to make sure they work
 	for(i=0; i<3; i++){
@@ -214,10 +218,7 @@ int initialize_cape(){
 			return -1;
 		}
 		fclose(encoder_pointers[i]);
-	};
-	
-	
-
+	}
 	
 	//  Spektrum RC setup on uart4
 	// initialize_spektrum();
@@ -241,7 +242,11 @@ int set_motor(int motor, float duty){
 	if(state == UNINITIALIZED){
 		initialize_cape();
 	}
-
+	if(pwm_period_ns == 0){
+		printf("pwm period not set, using default");
+		set_pwm_period_ns(MOTOR_DEFAULT_PERIOD_NS);
+	}
+	
 	if(motor>6 || motor<1){
 		printf("enter a motor value between 1 and 6\n");
 		return -1;
@@ -274,8 +279,6 @@ int set_motor(int motor, float duty){
 	return 0;
 }
 
-
-
 int set_pwm_period_ns(int period){
 	if(period <1){
 		printf("please use PWM period >1 (nanoseconds)\n");
@@ -284,17 +287,88 @@ int set_pwm_period_ns(int period){
 	int i=0;
 	FILE *fd;
 	char path[MAX_BUF];
+	printf("setting pwm run to 0\n");
+		for(i=0; i<6; i++){
+		strcpy(path, pwm_files[i]);
+		strcat(path, "run");
+		fd = fopen(path, "a");
+		if(fd<0){
+			printf("PWM run not available in /sys/class/devices/ocp.3\n");
+		}
+		fprintf(fd,"%d", 0);
+		fflush(fd);
+		fclose(fd);
+	};
+	printf("setting period\n");
 	for(i=0; i<6; i++){
 		strcpy(path, pwm_files[i]);
 		strcat(path, "period");
 		fd = fopen(path, "a");
+		if(fd<0){
+			printf("PWM period not available in /sys/class/devices/ocp.3\n");
+		}
 		fprintf(fd,"%d", period);
+		fflush(fd);
+		fclose(fd);
+	};
+	printf("setting pwm run to 1\n");
+		for(i=0; i<6; i++){
+		strcpy(path, pwm_files[i]);
+		strcat(path, "run");
+		fd = fopen(path, "a");
+		if(fd<0){
+			printf("PWM run not available in /sys/class/devices/ocp.3\n");
+		}
+		fprintf(fd,"%d", 1);
 		fflush(fd);
 		fclose(fd);
 	};
 	pwm_period_ns = period;
 	return 0;
 }
+
+int set_esc(int esc, float normalized_duty){
+
+	if(pwm_period_ns == 0){
+		printf("pwm period not set, using default");
+		set_pwm_period_ns(ESC_DEFAULT_PERIOD_NS);
+	}
+	if(esc>6 || esc<1){
+		printf("enter a esc value in the set {1,6}\n");
+		return -1;
+	}
+	
+	//check that the duty cycle is within +-1
+	if (normalized_duty>1){
+		normalized_duty = 1;
+	}
+	else if(normalized_duty<0){
+		normalized_duty=0;
+	}
+	
+	int duty_range_ns = DEFAULT_MAX_PULSE-DEFAULT_MIN_PULSE;
+	int duty_ns = DEFAULT_MIN_PULSE + normalized_duty*duty_range_ns;
+	fprintf(pwm_duty_pointers[esc-1], "%d", duty_ns);	
+	fflush(pwm_duty_pointers[esc-1]);
+
+	return 0;
+}
+
+
+// kill_esc() stops all communication to ECS by setting pulse duty to 0
+// Unlike set_esc which keeps pulsing at DEFAULT_MIN_PULSE when power is
+// set to zero to keep escs awake.
+int kill_esc(){
+	int ch;
+	for(ch=0;ch<6;ch++){
+		fprintf(pwm_duty_pointers[ch], "%d", 0);	
+		fflush(pwm_duty_pointers[ch]);
+	}
+	return 0;
+}
+
+
+
 
 long int get_encoder(int encoder){
 	char path[MAX_BUF]; //repeatedly used to store file path string
@@ -651,3 +725,102 @@ int cleanup_cape(){
 	return 0;
 }
 
+int initialize_imu(int sample_rate){
+
+	signed char gyro_orientation[9] = { 1, 0, 0,
+                                        0, 1, 0,
+                                        0, 0, 1 };
+
+	linux_set_i2c_bus(1);
+
+	printf("\nInitializing IMU .");
+	fflush(stdout);
+
+	if (mpu_init(NULL)) {
+		printf("\nmpu_init() failed\n");
+		return -1;
+	}
+
+	printf(".");
+	fflush(stdout);
+
+	if (mpu_set_sensors(INV_XYZ_GYRO | INV_XYZ_ACCEL | INV_XYZ_COMPASS)) {
+		printf("\nmpu_set_sensors() failed\n");
+		return -1;
+	}
+
+	printf(".");
+	fflush(stdout);
+
+	if (mpu_configure_fifo(INV_XYZ_GYRO | INV_XYZ_ACCEL)) {
+		printf("\nmpu_configure_fifo() failed\n");
+		return -1;
+	}
+
+	printf(".");
+	fflush(stdout);
+	
+	if (mpu_set_sample_rate(sample_rate)) {
+		printf("\nmpu_set_sample_rate() failed\n");
+		return -1;
+	}
+
+	printf(".");
+	fflush(stdout);
+	
+	if(sample_rate > 100){
+		if(mpu_set_compass_sample_rate(100)){
+			printf("\nmpu_set_compass_sample_rate() failed\n");
+			return -1;}
+	}		
+	else{
+		if(mpu_set_compass_sample_rate(sample_rate)){
+			printf("\nmpu_set_compass_sample_rate() failed\n");
+			return -1;}
+	}
+
+	printf(".");
+	fflush(stdout);
+
+	if (dmp_load_motion_driver_firmware()) {
+		printf("\ndmp_load_motion_driver_firmware() failed\n");
+		return -1;
+	}
+
+	printf(".");
+	fflush(stdout);
+
+	if (dmp_set_orientation(inv_orientation_matrix_to_scalar(gyro_orientation))) {
+		printf("\ndmp_set_orientation() failed\n");
+		return -1;
+	}
+
+	printf(".");
+	fflush(stdout);
+
+  	if (dmp_enable_feature(DMP_FEATURE_6X_LP_QUAT | DMP_FEATURE_SEND_RAW_ACCEL 
+						| DMP_FEATURE_SEND_CAL_GYRO | DMP_FEATURE_GYRO_CAL)) {
+		printf("\ndmp_enable_feature() failed\n");
+		return -1;
+	}
+
+	printf(".");
+	fflush(stdout);
+ 
+	if (dmp_set_fifo_rate(sample_rate)) {
+		printf("\ndmp_set_fifo_rate() failed\n");
+		return -1;
+	}
+
+	printf(".");
+	fflush(stdout);
+
+	if (mpu_set_dmp_state(1)) {
+		printf("\nmpu_set_dmp_state(1) failed\n");
+		return -1;
+	}
+
+	printf("\nIMU Initialized \n");
+
+	return 0;
+}
