@@ -26,15 +26,19 @@ int main(){
 	//Keep Running until program state changes
 	do{
 		//clock_gettime(CLOCK_MONOTONIC, &t1);  //record the time at the beginning.
-		
-		
-		set_esc(1,.1);
+		int i;
+		for(i=1; i<=6; i++){
+			set_esc(i,.1);
+		}
 		setGRN(HIGH);
 		printf("\rON ");
 		fflush(stdout);
 		sleep(1);
 		
-		set_esc(1,0);
+		for(i=1; i<=6; i++){
+			set_esc(i,0);
+		}
+		
 		printf("\rOFF");
 		fflush(stdout);
 		setGRN(LOW);
