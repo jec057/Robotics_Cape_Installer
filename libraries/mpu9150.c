@@ -25,14 +25,6 @@
 #include <string.h>
 #include "mpu9150.h"
 
-
-static int data_ready();
-static void calibrate_data(mpudata_t *mpu);
-static void tilt_compensate(quaternion_t magQ, quaternion_t unfusedQ);
-static int data_fusion(mpudata_t *mpu);
-static unsigned short inv_row_2_scale(const signed char *row);
-static unsigned short inv_orientation_matrix_to_scalar(const signed char *mtx);
-
 int debug_on;
 int yaw_mixing_factor;
 

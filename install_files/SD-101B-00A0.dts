@@ -333,6 +333,7 @@
 	fragment@15 {
     	target = <&eqep0>;
     	__overlay__ {
+			compatible	= "tieqep";
             pinctrl-names = "default";
             pinctrl-0 = <&pinctrl_eqep0>;
             
@@ -352,6 +353,7 @@
     fragment@16 {
     	target = <&eqep1>;
     	__overlay__ {
+			compatible	= "tieqep";
             pinctrl-names = "default";
             pinctrl-0 = <&pinctrl_eqep1>;
             
@@ -369,6 +371,7 @@
     fragment@17 {
     	target = <&eqep2>;
     	__overlay__ {
+			compatible	= "tieqep";
             pinctrl-names = "default";
             pinctrl-0 = <&pinctrl_eqep2>;
             

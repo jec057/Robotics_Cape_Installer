@@ -78,5 +78,13 @@ int mpu9150_read_mag(mpudata_t *mpu);
 void mpu9150_set_accel_cal(caldata_t *cal);
 void mpu9150_set_mag_cal(caldata_t *cal);
 
+int data_ready();
+void calibrate_data(mpudata_t *mpu);
+void tilt_compensate(quaternion_t magQ, quaternion_t unfusedQ);
+int data_fusion(mpudata_t *mpu);
+unsigned short inv_row_2_scale(const signed char *row);
+unsigned short inv_orientation_matrix_to_scalar(const signed char *mtx);
+
+
 #endif /* MPU9150_H */
 

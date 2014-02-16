@@ -14,7 +14,7 @@ echo "Compiling and Installing Device Tree Overlay"
 dtc -O dtb -o /lib/firmware/SD-101B-00A0.dtbo -b 0 -@ install_files/SD-101B-00A0.dts
 cp /boot/am335x-boneblack.dtb /boot/am335x-boneblack.dtb.old 
 cp install_files/am335x-boneblack.dtb /boot/
-cp install_files/tieqep.ko /usr/bin/
+
 
 
 echo "Copying uEnv.txt to Disable HDMI"
@@ -25,6 +25,7 @@ cp install_files/uEnv.txt /media/BEAGLEBONE/
 echo "Copying new pwm_test kernel Module"
 cp /lib/modules/3.8.13/kernel/drivers/pwm/pwm_test.ko /lib/modules/3.8.13/kernel/drivers/pwm/pwm_test.ko.old
 cp install_files/pwm_test.ko /lib/modules/3.8.13/kernel/drivers/pwm/
+cp install_files/tieqep.ko /lib/modules/3.8.13/kernel/drivers/pwm/
 
 
 
