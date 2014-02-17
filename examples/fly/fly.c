@@ -36,18 +36,51 @@ int on_start_press(){
 void* control_loop_func(void* ptr){
 	deltaT.tv_sec = 0;		// create time struct for control loop
 	deltaT.tv_nsec = (int)(1000000000/CONTROL_LOOP_RATE_HZ);
+	int i;
  	do{
 		clock_gettime(CLOCK_MONOTONIC, &t1);  //record the time at the beginning.
 		
+		
+		
 		switch (get_state()){
 		case RUNNING:	
-			
-			set_esc(1,0);
-			
+			if(get_rc_channel(6)==1){
+				set_state(PAUSED);
+				kill_esc();
+				setRED(HIGH);
+				setGRN(LOW);
+				printf("Kill Swith Hit\n");
+				break;
+			}
+			for(i=0;i<4;i++){
+				set_esc(i+1,(get_rc_channel(1)+1)/2);
+			}		
 			break;
 			
 		case PAUSED:
-			
+			if(get_rc_channel(6)==-1){
+				printf("kill switch released\n");
+				printf("move throttle up and down to rearm\n");
+				while(get_rc_channel(1)!=-1){
+					usleep(100000);
+					if(get_state()==EXITING)
+						break;
+				}
+				while(get_rc_channel(1)!=1){
+					usleep(100000);
+					if(get_state()==EXITING)
+						break;
+				}
+				while(get_rc_channel(1)!=-1){
+					usleep(100000);
+					if(get_state()==EXITING)
+						break;
+				}
+				setRED(LOW);
+				setGRN(HIGH);
+				set_state(RUNNING);
+				printf("armed and RUNNING\n");
+			}
 			break;
 			
 		default:
@@ -69,23 +102,58 @@ void* control_loop_func(void* ptr){
 int main(){
 	initialize_cape();
 	initialize_spektrum();
-	set_select_pressed_func(&on_select_press); //hold select for 2 seconds to close program
+	set_start_pressed_func(&on_start_press); //hold select for 2 seconds to close program
 	setRED(1);
 	setGRN(0);
 	set_state(PAUSED);
+	int i;
 	
-	Printf("hello and welcome to the BeagleQuad fly program.\n");
+	printf("hello and welcome to the BeagleQuad fly program.\n");
+	printf("\nTurn on your transmitter with throttle DOWN and kill switch UP\n");
+	
+	//wait for radio connection and then for throttle off
+	while(get_rc_new_flag()==0){
+		usleep(100000);
+		if(get_state()==EXITING)
+			break;
+	}
+	while(get_rc_channel(1)!=-1){
+		usleep(100000);
+		if(get_state()==EXITING)
+			break;
+	}
+	while(get_rc_channel(6)!=-1){
+		usleep(100000);
+		if(get_state()==EXITING)
+			break;
+	}
+	
+	printf("now go full throttle and down again to arm\n");
+	while(get_rc_channel(1)!=1){
+		usleep(100000);
+		if(get_state()==EXITING)
+			break;
+	}
+	while(get_rc_channel(1)!=-1){
+		usleep(100000);
+		if(get_state()==EXITING)
+			break;
+	}
+	
+	printf("ARMED!!\n");
+	set_state(RUNNING);
+	setRED(LOW);
+	setGRN(HIGH);
 	
 	
-	printf("\nTurn on your transmitter with throttle down\n");
 
-	/// Begin the control and slow threads 
-	pthread_t control_thread, slow_thread;
+	/// Begin the control thread
+	pthread_t control_thread;
 	pthread_create(&control_thread, NULL, control_loop_func, (void*) NULL);
 
-
+	//check for radio disconnect
 	while(get_state()!=EXITING){
-		sleep(1);
+		usleep(100000);
 	}
 
 	cleanup_cape();
