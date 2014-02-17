@@ -40,23 +40,25 @@ systemctl daemon-reload
 systemctl enable bootscript.service 
 
 echo "Installing Supporting Libraries"
-cp -r libraries/ $INSTALL_DIR
-cd $INSTALL_DIR/libraries
-#make clean
+cd libraries
 make install
+make clean
 cd ../
+cp -r libraries/ $INSTALL_DIR
 
 echo "Installing Examples"
 cp -r examples/ $INSTALL_DIR
-cp $INSTALL_DIR/examples/balance/balance 			/usr/bin/
-cp $INSTALL_DIR/examples/bare_minimum/bare_minimum 	/usr/bin/
-cp $INSTALL_DIR/examples/test_buttons/test_buttons 	/usr/bin/
-cp $INSTALL_DIR/examples/test_encoders/test_encoders /usr/bin/
-cp $INSTALL_DIR/examples/test_motors/test_motors 	/usr/bin/
-cp $INSTALL_DIR/examples/test_spektrum/test_spektrum 	/usr/bin/
-cp $INSTALL_DIR/examples/calibrate_spektrum/calibrate_spektrum 	/usr/bin/
-cp $INSTALL_DIR/examples/test_esc/test_esc				/usr/bin/
-cp $INSTALL_DIR/examples/calibrate_esc/calibrate_esc	/usr/bin/
+cd examples
+cp balance/balance 			/usr/bin/
+cp bare_minimum/bare_minimum 	/usr/bin/
+cp test_buttons/test_buttons 	/usr/bin/
+cp test_encoders/test_encoders /usr/bin/
+cp test_motors/test_motors 	/usr/bin/
+cp test_spektrum/test_spektrum 	/usr/bin/
+cp calibrate_spektrum/calibrate_spektrum 	/usr/bin/
+cp test_esc/test_esc				/usr/bin/
+cp calibrate_esc/calibrate_esc	/usr/bin/
+cd ../
 chmod 755 /usr/bin/*
 
 
