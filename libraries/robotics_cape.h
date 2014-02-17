@@ -37,8 +37,6 @@ int set_esc(int esc, float normalized_duty);
 int kill_esc();
 int set_pwm_period_ns(int period);
 long int get_encoder(int encoder);
-int getStartBTN();
-int getSelectBTN();
 int setGRN(PIN_VALUE i);
 int setRED(PIN_VALUE i);
 float getBattVoltage();

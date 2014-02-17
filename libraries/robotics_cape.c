@@ -386,18 +386,6 @@ long int get_encoder(int encoder){
 }
 
 
-int getStartBTN(){
-	unsigned int value;
-	gpio_get_value(START_BTN, &value);
-	return value;
-}
-
-int getSelectBTN(){
-	unsigned int value;
-	gpio_get_value(SELECT_BTN, &value);
-	return value;
-}
-
 int setGRN(PIN_VALUE i){
 	return gpio_set_value(GRN_LED, i);
 }
@@ -582,7 +570,7 @@ int calibrate_spektrum(){
 	printf("\n\nTurn on your Transmitter and connect receiver.\n");
 	printf("Move all sticks and switches through their range of motion.\n");
 	printf("Measured raw min/max positions will display below.\n");
-	printf("Hit ctrl_c when done.\n");
+	printf("Press the start button when done.\n");
 	printf("\nWaiting on Radio Connection. Satellite receiver LED should illuminate.\n");
 	printf("Ch: current min max\n");
 	
@@ -601,13 +589,17 @@ int calibrate_spektrum(){
 	}
 	usleep(100000); //wait for packet to finish
 	//start mins at current value
-	int i,j,k;
+	int j,k;
 	for(j=0;j<RC_CHANNELS;j++){
 		rc_mins[j]=rc_channels[j];
 		rc_maxes[j]=rc_channels[j];
 	}
-	
+	if(get_start_button()==HIGH){
+		setGRN(HIGH);
+		
+	}
 	while(get_state()!=EXITING){
+		printf("\r");
 		if (get_rc_new_flag() == 0){
 			if (k==1){
 				set_state(EXITING); 
@@ -615,14 +607,13 @@ int calibrate_spektrum(){
 			}
 			else k=1;
 		}
-		
-		//once data starts coming in, update mins and maxes
-		for(i=0;i<10;i++){
-			//printf("%d ", get_rc_new_flag());
-			printf("\r");
-			//fflush(stdout);
+		else{
 			for(j=0;j<RC_CHANNELS;j++){
-				if(get_state()==EXITING){
+				if(get_start_button()==HIGH){
+					set_state(EXITING);
+					break;
+				}
+				else if(get_state()==EXITING){
 					break; //since we are in a for loop, check state frequently
 				}
 				else if(rc_channels[j]>rc_maxes[j])
@@ -631,17 +622,15 @@ int calibrate_spektrum(){
 					rc_mins[j]=rc_channels[j];
 				
 				if(rc_channels[j] != 0){ //show only non-zero channels
-					printf("ch%d %d %d %d  ", j+1, rc_channels[j], rc_mins[j], rc_maxes[j]);
+					//printf("ch%d %d %d %d  ", j+1, rc_channels[j], rc_mins[j], rc_maxes[j]);
+					printf("%d %d  ", rc_mins[j], rc_maxes[j]);
 				}
 				rc_new_flag = 0;
 			}
-			usleep(100000);
 		}
-		
-		
-		
+		usleep(100000);
 	}
-	//if it looks like new data come in, write calibration file
+	//if it looks like new data came in, write calibration file
 	if((rc_mins[0]!=0)&&(rc_mins[0]!=rc_maxes[0])){ 
 		int fd;
 		fd = open(SPEKTRUM_CAL_FILE, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
@@ -663,7 +652,7 @@ int calibrate_spektrum(){
 }
 
 int initialize_spektrum(){
-	signal(SIGINT, ctrl_c);	//signal catcher calls cleanup function on exit
+	//signal(SIGINT, ctrl_c);	//signal catcher calls cleanup function on exit
 	//if calibration file exists, load it and start spektrum thread
 	FILE *cal;
 	cal = fopen(SPEKTRUM_CAL_FILE, "r");
@@ -705,21 +694,12 @@ void ctrl_c(int signo){
 
 int cleanup_cape(){
 	set_state(EXITING); 
-	int i;
-	for(i=1;i<=6;i++){
-		set_motor(i,0);
-	}
 
-	printf("\nClosing GPIO\n");
 	setGRN(0);
 	setRED(0);	
 
 	printf("Closing PWM\n");
-	for(i=0; i<6; i++){
-		fclose(pwm_duty_pointers[i]);
-	};
-	
-	
+	kill_esc();
 	
 	printf("\nExiting Cleanly\n");
 	return 0;

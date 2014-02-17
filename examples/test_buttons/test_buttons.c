@@ -47,6 +47,7 @@ int main(){
 	
 	//run forever till the program state changes
 	while(get_state() != EXITING){
+		usleep(100000);
 	}
 	
 	cleanup_cape();
