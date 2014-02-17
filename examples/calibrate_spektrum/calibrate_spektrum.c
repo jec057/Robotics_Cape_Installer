@@ -12,8 +12,9 @@ James Strawson - 2013
 #include <robotics_cape.h>
 
 int main(){
+	initialize_cape();
+	
 	initialize_spektrum();
 	calibrate_spektrum();
-	
 	return 0;
 }

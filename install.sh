@@ -61,6 +61,8 @@ cp calibrate_esc/calibrate_esc	/usr/bin/
 cd ../
 chmod 755 /usr/bin/*
 
+echo "Installing Default Calibration Files"
+cp -r cape_calibration/ $INSTALL_DIR
 
 
 echo "which program should run on boot?"
