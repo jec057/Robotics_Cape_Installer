@@ -19,7 +19,7 @@ You will be prompted if you wish to run the BeagleMIP balance
 or the BeagleQuad fly programs on boot. Type the number of the
 item you wish to select and hit enter.
 
-root@beaglebone:~#cd BeagleMIP_Installer
+root@beaglebone:~#cd Robotics_Cape_Installer
 root@beaglebone:~/Robotics_Cape_Installer# bash install.sh
 root@beaglebone:~/Robotics_Cape_Installer# reboot
 
