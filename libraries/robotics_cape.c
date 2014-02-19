@@ -204,9 +204,6 @@ int initialize_cape(){
 		pwm_duty_pointers[i] = fopen(path, "a");
 		//set_motor(i+1,0); //set motor to free-spin
 	}
-	
-	//kill_esc();
- 
 	printf("Initializing eQep Encoders\n");
 	//open encoder file pointers to make sure they work
 	for(i=0; i<3; i++){
@@ -281,43 +278,46 @@ int set_motor(int motor, float duty){
 
 int set_pwm_period_ns(int period){
 	if(period <1){
-		printf("please use PWM period >1 (nanoseconds)\n");
+		//printf("please use PWM period >1 (nanoseconds)\n");
 		return -1;
 	}
 	int i=0;
 	FILE *fd;
 	char path[MAX_BUF];
-	printf("setting pwm run to 0\n");
-		for(i=0; i<6; i++){
+	//printf("setting pwm run to 0\n");
+	for(i=0; i<6; i++){
 		strcpy(path, pwm_files[i]);
 		strcat(path, "run");
 		fd = fopen(path, "a");
 		if(fd<0){
 			printf("PWM run not available in /sys/class/devices/ocp.3\n");
+			return -1;
 		}
 		fprintf(fd,"%d", 0);
 		fflush(fd);
 		fclose(fd);
 	};
-	printf("setting period\n");
+	//printf("setting period\n");
 	for(i=0; i<6; i++){
 		strcpy(path, pwm_files[i]);
 		strcat(path, "period");
 		fd = fopen(path, "a");
 		if(fd<0){
 			printf("PWM period not available in /sys/class/devices/ocp.3\n");
+			return -1;
 		}
 		fprintf(fd,"%d", period);
 		fflush(fd);
 		fclose(fd);
 	};
-	printf("setting pwm run to 1\n");
+	//printf("setting pwm run to 1\n");
 		for(i=0; i<6; i++){
 		strcpy(path, pwm_files[i]);
 		strcat(path, "run");
 		fd = fopen(path, "a");
 		if(fd<0){
 			printf("PWM run not available in /sys/class/devices/ocp.3\n");
+			return -1;
 		}
 		fprintf(fd,"%d", 1);
 		fflush(fd);
@@ -354,11 +354,22 @@ int set_esc(int esc, float normalized_duty){
 	return 0;
 }
 
-
-// kill_esc() stops all communication to ECS by setting pulse duty to 0
+int set_all_esc(float duty){
+	int i;
+	if(duty<0 || duty >1){
+		printf("please set esc to duty in {0,1}\n");
+		return -1;
+	}
+	for(i=0;i<6;i++){
+		set_esc(i+1,duty);
+	}
+	return 0;
+}
+			
+// kill_pwm() stops all communication to ECS by setting pulse duty to 0
 // Unlike set_esc which keeps pulsing at DEFAULT_MIN_PULSE when power is
 // set to zero to keep escs awake.
-int kill_esc(){
+int kill_pwm(){
 	int ch;
 	for(ch=0;ch<6;ch++){
 		fprintf(pwm_duty_pointers[ch], "%d", 0);	
@@ -456,19 +467,6 @@ void* read_events(void* ptr){
 //////   Spektrum DSM2 RC Stuff   /////////////////
 ///////////////////////////////////////////////////
 
-const char *byte_to_binary(int x){
-    static char b[9];
-    b[0] = '\0';
-
-    int z;
-    for (z = 128; z > 0; z >>= 1)
-    {
-        strcat(b, ((x & z) == z) ? "1" : "0");
-    }
-
-    return b;
-}
-
 float get_rc_channel(int ch){
 	if(ch<1 || ch > RC_CHANNELS){
 		printf("please enter a channel between 1 & RC_CHANNELS");
@@ -533,7 +531,7 @@ void* uart4_checker(void *ptr){
 			//printf("\n");	
 		}
 		else if(i>=RC_CHANNELS){//something went wrong get back in sync
-			printf("\nuart4 packet sync error\n");
+			//printf("\nuart4 packet sync error\n");
 			do{
 				read(tty4_fd, &buf, 1);
 				if(buf[0]==0xFF){
@@ -677,6 +675,7 @@ int initialize_spektrum(){
 }
 
 
+
 //////////////////////////////////////////////
 /////// Exiting and closing handlers  ////////
 //////////////////////////////////////////////
@@ -698,13 +697,14 @@ int cleanup_cape(){
 	setGRN(0);
 	setRED(0);	
 
-	printf("Closing PWM\n");
-	kill_esc();
+	//printf("Closing PWM\n");
+	kill_pwm();
 	
 	printf("\nExiting Cleanly\n");
 	return 0;
 }
 
+//// MPU9150 IMU ////
 int initialize_imu(int sample_rate){
 
 	signed char gyro_orientation[9] = { 1, 0, 0,
@@ -713,7 +713,7 @@ int initialize_imu(int sample_rate){
 
 	linux_set_i2c_bus(1);
 
-	printf("\nInitializing IMU .");
+	printf("Initializing IMU .");
 	fflush(stdout);
 
 	if (mpu_init(NULL)) {
@@ -792,15 +792,41 @@ int initialize_imu(int sample_rate){
 		return -1;
 	}
 
-	printf(".");
+	printf(".\n");
 	fflush(stdout);
 
 	if (mpu_set_dmp_state(1)) {
 		printf("\nmpu_set_dmp_state(1) failed\n");
 		return -1;
 	}
-
-	printf("\nIMU Initialized \n");
-
 	return 0;
+}
+
+/////////////////////////////////////
+//// Timing and support Functions ///
+/////////////////////////////////////
+
+const char *byte_to_binary(int x){
+    static char b[9];
+    b[0] = '\0';
+
+    int z;
+    for (z = 128; z > 0; z >>= 1)
+    {
+        strcat(b, ((x & z) == z) ? "1" : "0");
+    }
+
+    return b;
+}
+
+timespec diff(timespec start, timespec end){
+	timespec temp;
+	if ((end.tv_nsec-start.tv_nsec)<0) {
+		temp.tv_sec = end.tv_sec-start.tv_sec-1;
+		temp.tv_nsec = 1000000000L+end.tv_nsec-start.tv_nsec;
+	} else {
+		temp.tv_sec = end.tv_sec-start.tv_sec;
+		temp.tv_nsec = end.tv_nsec-start.tv_nsec;
+	}
+	return temp;
 }

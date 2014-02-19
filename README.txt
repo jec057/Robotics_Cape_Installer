@@ -14,11 +14,14 @@ This is usually done through SFTP using a program like WinSCP
 If you have difficulty connecting consult BeagleBoard.org
 http://beagleboard.org/Getting%20Started/
 
-3) Log in as root and execute the install script and reboot
+3) Log in as root, execute the install.sh script and reboot
+You will be prompted if you wish to run the BeagleMIP balance
+or the BeagleQuad fly programs on boot. Type the number of the
+item you wish to select and hit enter.
 
 root@beaglebone:~#cd BeagleMIP_Installer
-root@beaglebone:~/BeagleMIP_Installer# bash install.sh
-root@beaglebone:~/BeagleMIP_Installer# reboot
+root@beaglebone:~/Robotics_Cape_Installer# bash install.sh
+root@beaglebone:~/Robotics_Cape_Installer# reboot
 
 4) If all went well, restarting will result in the red LED 
 turning on once the BBB has completely booted. To indicate the

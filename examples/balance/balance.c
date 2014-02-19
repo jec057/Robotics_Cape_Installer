@@ -207,8 +207,9 @@ void* slow_loop_func(void* ptr){
 		}
 		
 		
-		printf("\r                                                                         ");
-		printf("\rtheta: %0.2f	phi: %0.2f gamma: %0.2f", theta, phi[0], Gamma[0]);
+		//printf("\r                                                             ");
+		printf("\rtheta: %0.2f phi: %0.2f gamma: %0.2f ", theta, phi[0], Gamma[0]);
+		printf("u[0]: %0.2f  ", u[0]);
 		fflush(stdout);
 		usleep(100000); //check buttons at roughly 10 hz,not very accurate)
 	}while(get_state() != EXITING);
@@ -309,6 +310,13 @@ int main(){
 	pthread_t control_thread, slow_thread;
 	pthread_create(&control_thread, NULL, control_loop_func, (void*) NULL);
 	pthread_create(&slow_thread, NULL, slow_loop_func, (void*) NULL);
+	struct sched_param params;
+	// We'll set the priority to the maximum.
+	params.sched_priority = sched_get_priority_max(SCHED_FIFO);
+	if (pthread_setschedparam(control_thread, SCHED_FIFO, &params)) {
+		printf("Unsuccessful in setting thread realtime prio\n");
+		return -1;
+	}
 	//pthread_join(control_thread, NULL);
 	//pthread_join(slow_thread, NULL);
 
