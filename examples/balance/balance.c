@@ -11,8 +11,7 @@
 
 #define LEAN_THRESHOLD 0.6  //radians lean before killing motors
 #define THETA_REF_MAX 0.5	// Maximum reference theta set point for inner loop
-#define START_THRESHOLD 0.2 // how close to vertical before it will start balancing while self uprighting
-#define LOW_BATT_VOLTAGE 7.0	//lowest battery voltage before it should be plugged in
+#define START_THRESHOLD 0.2 // how close to vertical before it will start balancing
 
 // complementary high and low pass filter constants, plus integrator trim
 #define THETA_MIX_TC  3   // t_seconds timeconstant on filter
@@ -177,21 +176,6 @@ int on_select_press(){
 ///////////////////////////////////////////////////////
 void* slow_loop_func(void* ptr){
 	do{
-		/// check battery voltage and buttons 
-		if(getBattVoltage()<LOW_BATT_VOLTAGE){
-			printf("\n Battery voltage too low, please plug in charger\n");
-			set_state(PAUSED); //stop the controller
-			while(getBattVoltage()<LOW_BATT_VOLTAGE){
-				setRED(HIGH);
-				usleep(100000);	//wait for the battery to be charged or plugged in
-				setRED(LOW);
-				usleep(100000);
-			}			
-			set_state(RUNNING);
-			printf("Battery Voltage OK, back to normal operation\n");
-		}	
-		
-
 		switch (get_state()){
 		case RUNNING:	
 			// detect a tip-over
