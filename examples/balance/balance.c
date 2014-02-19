@@ -14,7 +14,7 @@
 #define START_THRESHOLD 0.2 // how close to vertical before it will start balancing
 
 // complementary high and low pass filter constants, plus integrator trim
-#define THETA_MIX_TC  3   // t_seconds timeconstant on filter
+#define THETA_MIX_TC  2   // t_seconds timeconstant on filter
 const float HP_CONST = THETA_MIX_TC/(THETA_MIX_TC + DT);
 const float LP_CONST = DT/(THETA_MIX_TC + DT);
 float thetaTrim = 0;
@@ -56,33 +56,6 @@ float kTrim = -0.2;  // outer loop integrator constant
 float kInner = 1.8; //
 float kOuter = 2.4; //
 
-
-// struct neccesary for the nanosleep function
-//typedef struct timespec	timespec;
-timespec t1, t2, t2minust1, sleepRequest, deltaT;
-
-
-
-//////////////////////////
-// Function Definitions //
-//////////////////////////
-
-// gives the difference between two timespecs
-// used to calcualte how long to sleep for
-/*
-timespec diff(timespec start, timespec end)
-{
-	timespec temp;
-	if ((end.tv_nsec-start.tv_nsec)<0) {
-		temp.tv_sec = end.tv_sec-start.tv_sec-1;
-		temp.tv_nsec = 1000000000L+end.tv_nsec-start.tv_nsec;
-	} else {
-		temp.tv_sec = end.tv_sec-start.tv_sec;
-		temp.tv_nsec = end.tv_nsec-start.tv_nsec;
-	}
-	return temp;
-}
-*/
 
 // start I2C communication with MPU-9150/6050
 void i2cStart(){
@@ -133,12 +106,7 @@ float initializeEstimator(){
 }
 
 
-//////////////////////////////////////////
-// Complementary Filter		   //
-// Returns the latest value for theta.  //
-// You must call this function at 200hz //
-//////////////////////////////////////////
-
+// Complementary Filter
 float Complementary_Filter(){
 	int16_t ax, ay, az;
 	int16_t gx, gy, gz;
@@ -172,7 +140,6 @@ int on_start_press(){
 	return 0;
 }
 
-
 ///////////////////////////////////////////////////////
 // 10hz Loop checking battery, buttons, and tipover ///
 ///////////////////////////////////////////////////////
@@ -199,9 +166,6 @@ void* slow_loop_func(void* ptr){
 		default:
 			break;
 		}
-		
-		
-		//printf("\r                                                             ");
 		printf("\rtheta: %0.2f phi: %0.2f gamma: %0.2f ", theta, phi[0], Gamma[0]);
 		printf("u[0]: %0.2f  ", u[0]);
 		fflush(stdout);
@@ -210,18 +174,26 @@ void* slow_loop_func(void* ptr){
 	return NULL;
 }
 
-//////////////////////////////////////////////////////////////////////////
-/// running 200hz discrete estimator and controller in asychronous loop //
-//////////////////////////////////////////////////////////////////////////
+////////////////////////////////
+/// 200hz discrete controller //
+////////////////////////////////
 void* control_loop_func(void* ptr){
- 	do{
-		
+	timespec t1, t2, t2minust1, sleepRequest, deltaT;
+	deltaT.tv_sec = 0;		// create time struct for 5ms (200hz)
+	deltaT.tv_nsec = 5000000;
+
+ 	while(get_state() != EXITING){
 		clock_gettime(CLOCK_MONOTONIC, &t1);  //record the time at the beginning.
+		
+		// Filter angle theta
+		theta = Complementary_Filter();
+		
+		 //convert encoders to radians, 352 ticks per revolution
 		encoderCountsR = get_encoder(1);
-		encoderCountsL = -(get_encoder(2)+get_encoder(3)); 
-		phi[1]=phi[0];
-		//convert to radians, 352 ticks per revolution
-		phi[0] = (encoderCountsL-encoderOffsetL+encoderCountsR-encoderOffsetR)*PI/352; 
+		encoderCountsL = -get_encoder(2); 
+		phi[1] = phi[0];
+		phi[0] = ((encoderCountsL-encoderOffsetL+encoderCountsR-encoderOffsetR)*PI/352)+theta; 
+		
 		//check if wheels are free spinning
 		if(fabs(phi[0]-phi[1])>.3){
 			set_state(PAUSED);
@@ -233,21 +205,17 @@ void* control_loop_func(void* ptr){
 		//turning estimation
 		int encoder_dif;
 		encoder_dif = (encoderCountsL-encoderOffsetL)-(encoderCountsR-encoderOffsetR);
-		Gamma[1]=Gamma[0];
+		Gamma[1] = Gamma[0];
 		Gamma[0]= WHEEL_RADIUS*2*(encoder_dif)*PI/(352*TRACK_WIDTH);
 		
-		
-		theta = Complementary_Filter();
-			// detect a tip-over
+		switch (get_state()){
+		case RUNNING:
 			if(fabs(theta)>LEAN_THRESHOLD){
 				set_state(PAUSED);
 				kill_pwm();
 				setRED(HIGH);
 				setGRN(LOW);
 			}
-	
-		switch (get_state()){
-		case RUNNING:	
 			// step difference equation forward
 			ePhi[1]=ePhi[0];
 			thetaRef[1]=thetaRef[0];
@@ -278,7 +246,6 @@ void* control_loop_func(void* ptr){
 			dutyRight = u[0]-torqueSplit;			
 			set_motor(1,-dutyRight);
 			set_motor(3,dutyLeft); //minus because motor is flipped on chassis
-			set_motor(4,dutyLeft); //drive 3rd slot too, why not?
 			break;
 			
 		case PAUSED:
@@ -295,54 +262,42 @@ void* control_loop_func(void* ptr){
 			break;
 		}
 		
-
 		//Sleep for the necessary time to maintain 200hz
 		clock_gettime(CLOCK_MONOTONIC, &t2);
 		t2minust1 = diff(t1, t2);
 		sleepRequest = diff(t2minust1, deltaT);
 		nanosleep(&sleepRequest, NULL);
-	}while(get_state() != EXITING);
+	}
 	return NULL;
 }
 
-
 //////////////////////////////////////////////////////////////////
-/// Main function used for initializtion and thread management ///
+/// Main function used for initialization and thread management ///
 //////////////////////////////////////////////////////////////////
-
 int main(){
 	initialize_cape();
-	
-	deltaT.tv_sec = 0;		// create time struct for 5ms (200hz)
-	deltaT.tv_nsec = 5000000;
 	set_start_pressed_func(&on_start_press); //hold select for 2 seconds to close program
 	i2cStart();
 	initializeEstimator();
 	setRED(1);
 	setGRN(0);
+	set_state(PAUSED);
 	
-	printf("\nHold your MIP upright to begin balancing\n");
-
-	/// Begin the control and slow threads 
+	//start threads
 	pthread_t control_thread, slow_thread;
-	pthread_create(&control_thread, NULL, control_loop_func, (void*) NULL);
-	pthread_create(&slow_thread, NULL, slow_loop_func, (void*) NULL);
 	struct sched_param params;
-	// We'll set the priority to the maximum.
+	// We'll set the priority to the maximum for control_thread
 	params.sched_priority = sched_get_priority_max(SCHED_FIFO);
-	if (pthread_setschedparam(control_thread, SCHED_FIFO, &params)) {
-		printf("Unsuccessful in setting thread realtime prio\n");
-		return -1;
-	}
-	//pthread_join(control_thread, NULL);
-	//pthread_join(slow_thread, NULL);
-
+	pthread_create(&control_thread, NULL, control_loop_func, (void*) NULL);
+	pthread_setschedparam(control_thread, SCHED_FIFO, &params);
+	pthread_create(&slow_thread, NULL, slow_loop_func, (void*) NULL);
+	printf("\nHold your MIP upright to begin balancing\n");
+	
 	while(get_state()!=EXITING){
 		sleep(1);
 	}
 
 	//nothing get executed here until runTrue == 0 which terminates the threads
-	//usleep(100000); //let other processes clean up
 	closeConnection(pi2c);
 	cleanup_cape();
 	return 0;
