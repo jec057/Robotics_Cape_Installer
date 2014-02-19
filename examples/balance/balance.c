@@ -54,7 +54,7 @@ float numD2[] = {0.0987,   -0.0985};
 float denD2[] = {1.0000,   -0.9719};
 float kTrim = -0.2;  // outer loop integrator constant
 float kInner = 1.8; //
-float kOuter = 2.4; //
+float kOuter = 2.2; //
 
 
 // start I2C communication with MPU-9150/6050
@@ -194,14 +194,6 @@ void* control_loop_func(void* ptr){
 		phi[1] = phi[0];
 		phi[0] = ((encoderCountsL-encoderOffsetL+encoderCountsR-encoderOffsetR)*PI/352)+theta; 
 		
-		//check if wheels are free spinning
-		if(fabs(phi[0]-phi[1])>.3){
-			set_state(PAUSED);
-			kill_pwm();
-			setRED(HIGH);
-			setGRN(LOW);
-		}
-		
 		//turning estimation
 		int encoder_dif;
 		encoder_dif = (encoderCountsL-encoderOffsetL)-(encoderCountsR-encoderOffsetR);
@@ -215,7 +207,17 @@ void* control_loop_func(void* ptr){
 				kill_pwm();
 				setRED(HIGH);
 				setGRN(LOW);
+				break;
 			}
+			//check if wheels are free spinning
+			if(fabs(phi[0]-phi[1])>.3){
+				set_state(PAUSED);
+				kill_pwm();
+				setRED(HIGH);
+				setGRN(LOW);
+				break;
+			}
+		
 			// step difference equation forward
 			ePhi[1]=ePhi[0];
 			thetaRef[1]=thetaRef[0];
@@ -287,8 +289,8 @@ int main(){
 	pthread_t control_thread, slow_thread;
 	struct sched_param params;
 	// We'll set the priority to the maximum for control_thread
-	params.sched_priority = sched_get_priority_max(SCHED_FIFO);
 	pthread_create(&control_thread, NULL, control_loop_func, (void*) NULL);
+	params.sched_priority = sched_get_priority_max(SCHED_FIFO);
 	pthread_setschedparam(control_thread, SCHED_FIFO, &params);
 	pthread_create(&slow_thread, NULL, slow_loop_func, (void*) NULL);
 	printf("\nHold your MIP upright to begin balancing\n");
