@@ -240,7 +240,7 @@ int set_motor(int motor, float duty){
 		initialize_cape();
 	}
 	if(pwm_period_ns == 0){
-		printf("pwm period not set, using default");
+		//printf("pwm period not set, using default");
 		set_pwm_period_ns(MOTOR_DEFAULT_PERIOD_NS);
 	}
 	

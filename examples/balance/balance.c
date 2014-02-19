@@ -52,13 +52,13 @@ float numD1[] = {-6.0977, 11.6581, -5.5721};
 float denD1[] = {1.0000,   -1.6663,    0.6663};
 float numD2[] = {0.0987,   -0.0985};
 float denD2[] = {1.0000,   -0.9719};
-float kTrim = -0.1;  // outer loop integrator constant
+float kTrim = -0.2;  // outer loop integrator constant
 float kInner = 1.8; //
-float kOuter = 1.6; //
+float kOuter = 2.4; //
 
 
 // struct neccesary for the nanosleep function
-typedef struct timespec	timespec;
+//typedef struct timespec	timespec;
 timespec t1, t2, t2minust1, sleepRequest, deltaT;
 
 
@@ -69,6 +69,7 @@ timespec t1, t2, t2minust1, sleepRequest, deltaT;
 
 // gives the difference between two timespecs
 // used to calcualte how long to sleep for
+/*
 timespec diff(timespec start, timespec end)
 {
 	timespec temp;
@@ -81,6 +82,7 @@ timespec diff(timespec start, timespec end)
 	}
 	return temp;
 }
+*/
 
 // start I2C communication with MPU-9150/6050
 void i2cStart(){
@@ -162,9 +164,9 @@ float Complementary_Filter(){
 }
 
 //If the user holds select for 2 seconds, the program exits cleanly
-int on_select_press(){
+int on_start_press(){
 	sleep(2);
-	if(get_select_button() == HIGH){
+	if(get_start_button() == HIGH){
 		set_state(EXITING);
 	}
 	return 0;
@@ -178,14 +180,6 @@ void* slow_loop_func(void* ptr){
 	do{
 		switch (get_state()){
 		case RUNNING:	
-			// detect a tip-over
-			if(fabs(theta)>LEAN_THRESHOLD){
-				set_state(PAUSED);
-				set_motor(1,0);
-				set_motor(3,0);
-				setRED(HIGH);
-				setGRN(LOW);
-			}
 			break;
 			
 		case PAUSED:
@@ -221,17 +215,36 @@ void* slow_loop_func(void* ptr){
 //////////////////////////////////////////////////////////////////////////
 void* control_loop_func(void* ptr){
  	do{
-		clock_gettime(CLOCK_MONOTONIC, &t1);  //record the time at the beginning.
 		
-	
-		encoderCountsL = (get_encoder(1)-encoderOffsetL);
-		encoderCountsR = -(get_encoder(2)-encoderOffsetR);
+		clock_gettime(CLOCK_MONOTONIC, &t1);  //record the time at the beginning.
+		encoderCountsR = get_encoder(1);
+		encoderCountsL = -(get_encoder(2)+get_encoder(3)); 
 		phi[1]=phi[0];
-		phi[0] = (encoderCountsL+encoderCountsR)*PI/352; //convert to radians, 352 ticks per revolution
+		//convert to radians, 352 ticks per revolution
+		phi[0] = (encoderCountsL-encoderOffsetL+encoderCountsR-encoderOffsetR)*PI/352; 
+		//check if wheels are free spinning
+		if(fabs(phi[0]-phi[1])>.3){
+			set_state(PAUSED);
+			kill_pwm();
+			setRED(HIGH);
+			setGRN(LOW);
+		}
+		
+		//turning estimation
+		int encoder_dif;
+		encoder_dif = (encoderCountsL-encoderOffsetL)-(encoderCountsR-encoderOffsetR);
 		Gamma[1]=Gamma[0];
-		Gamma[0]= WHEEL_RADIUS*2*(encoderCountsL-encoderCountsR)*PI/(352*TRACK_WIDTH);
+		Gamma[0]= WHEEL_RADIUS*2*(encoder_dif)*PI/(352*TRACK_WIDTH);
+		
+		
 		theta = Complementary_Filter();
-
+			// detect a tip-over
+			if(fabs(theta)>LEAN_THRESHOLD){
+				set_state(PAUSED);
+				kill_pwm();
+				setRED(HIGH);
+				setGRN(LOW);
+			}
 	
 		switch (get_state()){
 		case RUNNING:	
@@ -261,19 +274,23 @@ void* control_loop_func(void* ptr){
 			}
    
 			torqueSplit = kTurn*(gammaRef - Gamma[0]);
-			dutyLeft = u[0]-torqueSplit;
-			dutyRight = u[0]+torqueSplit;			
+			dutyLeft = u[0]+torqueSplit;
+			dutyRight = u[0]-torqueSplit;			
 			set_motor(1,-dutyRight);
 			set_motor(3,dutyLeft); //minus because motor is flipped on chassis
+			set_motor(4,dutyLeft); //drive 3rd slot too, why not?
 			break;
+			
 		case PAUSED:
-			encoderOffsetL = get_encoder(1);
-			encoderOffsetR = get_encoder(2);
+			encoderOffsetL = encoderCountsL;
+			encoderOffsetR = encoderCountsR;
 			ePhi[1]=0; ePhi[0]=0;
 			thetaRef[1]=0; thetaRef[0]=0;
 			eTheta[2]=0; eTheta[1]=0; eTheta[0]=0;
 			u[2]=0; u[1]=0; u[0]=0;
+			phi[0]=0; phi[1]=0;
 			break;
+			
 		default:
 			break;
 		}
@@ -298,7 +315,7 @@ int main(){
 	
 	deltaT.tv_sec = 0;		// create time struct for 5ms (200hz)
 	deltaT.tv_nsec = 5000000;
-	set_select_pressed_func(&on_select_press); //hold select for 2 seconds to close program
+	set_start_pressed_func(&on_start_press); //hold select for 2 seconds to close program
 	i2cStart();
 	initializeEstimator();
 	setRED(1);
