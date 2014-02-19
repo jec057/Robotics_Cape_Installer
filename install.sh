@@ -58,6 +58,7 @@ cp test_spektrum/test_spektrum 	/usr/bin/
 cp calibrate_spektrum/calibrate_spektrum 	/usr/bin/
 cp test_esc/test_esc				/usr/bin/
 cp calibrate_esc/calibrate_esc	/usr/bin/
+cp battery_monitor/battery_monitor /usr/bin/
 cd ../
 chmod 755 /usr/bin/*
 
