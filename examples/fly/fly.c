@@ -1,23 +1,30 @@
 // Fly
-// Work in progress, don't use this code.
-
 // James Strawson - 2013
 
 #include <robotics_cape.h>
-
-#define CONTROL_HZ 150	//rate in Hz
-#define DT 1/150   		//timestep seconds
+#define CONTROL_HZ 125	//rate in Hz
+#define DT .008   		//timestep seconds
 #define	SATE_LEN 32		//number of timesteps to retain data
-#define TIP_THRESHOLD 0.5
-
-// Functions
+#define TIP_THRESHOLD 0.8
+#define THETA_REF_MAX 0.4	// Maximum reference theta set point for inner loop
+#define SYSTEM_STATES 4
+#define STATE_HISTORY 2
+#define USER_YAW_RATE 1		// Max rad/s the unit will yaw for the user.
 int on_start_press();
-void* flight_control_loop(void* ptr);
+void* control_loop(void* ptr);
 void* io_loop(void* ptr);
-
-//Global Variables
-float roll[SATE_LEN], pitch[SATE_LEN], yaw[SATE_LEN];
 mpudata_t mpu;
+
+//Global state and control Variables. [altitude, roll, pitch, yaw]
+float x[SYSTEM_STATES][STATE_HISTORY];
+float state_error[SYSTEM_STATES][STATE_HISTORY];
+float set_point[4], integrator[4], derivative[4], u[4], esc[4];
+//control gains, 4 states, 3 gains PID 
+float K[4][3]={{0,  0,  0},
+			   {1,  0,  0},
+			   {1,  0,  0},
+			   {1,  0,  0}};
+float imu_offset[3]; //stead state error in raw dmp angles set when armed
 
 int main(){
 	//Initialize
@@ -27,6 +34,7 @@ int main(){
 	if(initialize_imu(CONTROL_HZ)){
 		return -1;
 	}
+	sleep(3); //let IMU Settle
 	setRED(1);
 	setGRN(0);
 	set_state(PAUSED);
@@ -34,14 +42,17 @@ int main(){
 
 	/// Begin the threads!
 	pthread_t control_thread, io_thread;
-	pthread_create(&control_thread, NULL, flight_control_loop, (void*) NULL);
+	struct sched_param params;
+	pthread_create(&control_thread, NULL, control_loop, (void*) NULL);
+	params.sched_priority = sched_get_priority_max(SCHED_FIFO);
+	pthread_setschedparam(control_thread, SCHED_FIFO, &params);
 	pthread_create(&io_thread, NULL, io_loop, (void*) NULL);
 
-	//chill in my crib yo
+	//chill
 	while(get_state()!=EXITING){
 		usleep(100000);
 	}
-	//cleanup time
+	//cleanup
 	sleep(1);
 	cleanup_cape();
 	return 0;
@@ -57,38 +68,62 @@ int on_start_press(){
 }
 
 // Flight Control Loop //
-void* flight_control_loop(void* ptr){
+void* control_loop(void* ptr){
 	timespec beginTime, endTime, executionTime, sleepRequest, deltaT;
 	deltaT.tv_sec = 0;	// create time struct for control loop
 	deltaT.tv_nsec = (int)(1000000000/CONTROL_HZ);
 	memset(&mpu, 0, sizeof(mpudata_t));
 	int i;
 	
-	
 	do{
 		clock_gettime(CLOCK_MONOTONIC, &beginTime);  //record the time at the beginning.
-		//check for kill switch
-		if(get_rc_channel(6)==1){
-			set_state(PAUSED);
-			set_all_esc(0);
-			setRED(HIGH);
-			setGRN(LOW);
-			printf("Kill Swith Hit\n");
-			break;
-		}
-		
 		mpu9150_read(&mpu);
 
-		//update state
-		roll[0]  = mpu.fusedEuler[VEC3_X]; 
-		pitch[0] = mpu.fusedEuler[VEC3_Y];
-		yaw[0]  = mpu.fusedEuler[VEC3_Z];
+		//update system state estimate
+		for(i=0;i<SYSTEM_STATES;i++){
+			x[i][1]=x[i][0];
+			state_error[i][1]=state_error[i][0];
+		}
+		//x[0][0] = get_Sonar_Range;
+		x[1][0] = mpu.fusedEuler[VEC3_X] - imu_offset[0];
+		x[2][0] = -mpu.fusedEuler[VEC3_Y] + imu_offset[1];
+		x[3][0] = -mpu.fusedEuler[VEC3_Z] + imu_offset[2];
 		
+
 		switch (get_state()){
 		case RUNNING:	
+			//check for kill switch
+			if(get_rc_channel(6)==1){
+				set_state(PAUSED);
+				set_all_esc(0);
+				setRED(HIGH);
+				setGRN(LOW);
+				printf("Kill Swith Hit\n");
+			}
 			
+			//update controller set points
+			set_point[1]=get_rc_channel(2);
+			set_point[2]=-get_rc_channel(3);
+			set_point[3]= set_point[3] + USER_YAW_RATE*DT*get_rc_channel(4);
+
+			//PID Up in Here
+			for(i=0;i<SYSTEM_STATES;i++){
+				state_error[i][0]=set_point[i]-x[i][0];
+				integrator[i]=DT*state_error[i][0] + integrator[i];
+				derivative[i]=(state_error[i][0]-state_error[i][1])/DT;
+				u[i]=K[i][0]*(state_error[i][0]+K[i][1]*integrator[i]+K[i][2]*derivative[i]);
+			}
+			
+			//direct throttle for now
+			u[0] = (get_rc_channel(1)+1)/2;
+		
+			// mixing
+			esc[0]=u[0]-u[1]-u[2]-u[3];
+			esc[1]=u[0]+u[1]-u[2]+u[3];
+			esc[2]=u[0]+u[1]+u[2]-u[3];
+			esc[3]=u[0]-u[1]+u[2]+u[3];
 			for(i=0;i<4;i++){
-				set_esc(i+1,(get_rc_channel(1)+1)/2);
+				set_esc(i+1,esc[i]);
 			}		
 			break;
 			
@@ -109,45 +144,71 @@ void* flight_control_loop(void* ptr){
 }
 
 void* io_loop(void* ptr){
+	int i;
 	do{
 		switch (get_state()){
 		case RUNNING:	
-			// detect a tip-over
-			if(abs(roll[0])>TIP_THRESHOLD || abs(roll[0])>TIP_THRESHOLD){
+			// detect a tip-over pitch and roll
+			if(abs(x[1][0])>TIP_THRESHOLD || abs(x[2][0])>TIP_THRESHOLD){
 				set_state(PAUSED);
 				set_all_esc(0);
 				setRED(HIGH);
 				setGRN(LOW);
 			}
-			printf("\rp%0.2f r%0.2f y%0.2f", pitch[0], roll[0], yaw[0]);
-			printf("things");
+			
+			printf("\rx: "); //print state
+			for(i=0; i<SYSTEM_STATES; i++){
+				printf("%0.2f ", x[i][0]);
+			}
+			
+			printf(" set: "); //print controller setpoint
+			for(i=0; i<4; i++){
+				printf("%0.2f ", set_point[i]);
+			}
+			
+			// printf(" RC: "); //print RC Radio Inputs
+			// for(i=0; i<4; i++){
+				// printf("%0.2f ", get_rc_channel(i));
+			// }
+			
+			printf(" u: ");//print control outputs u
+			for(i=0; i<4; i++){
+				printf("%0.2f ", u[i]);
+			}
+			
+			
 			fflush(stdout);		
 			break;
 			
 		case PAUSED:
+			set_all_esc(0);
 			printf("\nTurn on your transmitter kill switch UP\n");
 			printf("Move throttle UP then DOWN to arm\n");
 			while(get_rc_new_flag()==0){ //wait for radio connection
 				usleep(100000);
 				if(get_state()==EXITING)
 					break;}
-				while(get_rc_channel(6)!=-1){ //wait for kill switch up
-					usleep(100000);
-					if(get_state()==EXITING)
-						return 0;}
-				while(get_rc_channel(1)!=-1){ //wait for throttle down
-					usleep(100000);
-					if(get_state()==EXITING)
-						break;}
-				while(get_rc_channel(1)!=1){ //wait for throttle up
-					usleep(100000);
-					if(get_state()==EXITING)
-						break;}
-				while(get_rc_channel(1)!=-1){ //wait for throttle down
-					usleep(100000);
-					if(get_state()==EXITING)
+			while(get_rc_channel(6)!=-1){ //wait for kill switch up
+				usleep(100000);
+				if(get_state()==EXITING)
+					return 0;}
+			while(get_rc_channel(1)!=-1){ //wait for throttle down
+				usleep(100000);
+				if(get_state()==EXITING)
 					break;}
-	
+			while(get_rc_channel(1)!=1){ //wait for throttle up
+				usleep(100000);
+				if(get_state()==EXITING)
+					break;}
+			while(get_rc_channel(1)!=-1){ //wait for throttle down
+				usleep(100000);
+				if(get_state()==EXITING)
+				break;}
+			
+			imu_offset[0] = mpu.fusedEuler[VEC3_X]; 
+			imu_offset[1] = mpu.fusedEuler[VEC3_Y]; 
+			imu_offset[2] = mpu.fusedEuler[VEC3_Z]; 
+			set_point[3] = 0;
 			printf("ARMED!!\n\n");
 			set_state(RUNNING);
 			setRED(LOW);

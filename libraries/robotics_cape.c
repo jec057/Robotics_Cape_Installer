@@ -330,7 +330,7 @@ int set_pwm_period_ns(int period){
 int set_esc(int esc, float normalized_duty){
 
 	if(pwm_period_ns == 0){
-		printf("pwm period not set, using default");
+		//printf("pwm period not set, using default");
 		set_pwm_period_ns(ESC_DEFAULT_PERIOD_NS);
 	}
 	if(esc>6 || esc<1){
