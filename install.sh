@@ -49,16 +49,20 @@ cp -r libraries/ $INSTALL_DIR
 echo "Installing Examples"
 cp -r examples/ $INSTALL_DIR
 cd examples
-cp balance/balance 			/usr/bin/
-cp bare_minimum/bare_minimum 	/usr/bin/
-cp test_buttons/test_buttons 	/usr/bin/
-cp test_encoders/test_encoders /usr/bin/
-cp test_motors/test_motors 	/usr/bin/
-cp test_spektrum/test_spektrum 	/usr/bin/
+cp balance/balance 					/usr/bin/
+cp bare_minimum/bare_minimum 		/usr/bin/
+cp battery_monitor/battery_monitor  /usr/bin/
+cp calibrate_esc/calibrate_esc		/usr/bin/
 cp calibrate_spektrum/calibrate_spektrum 	/usr/bin/
+cp fly/fly							/usr/bin/
+cp test_buttons/test_buttons 		/usr/bin/
+cp test_encoders/test_encoders 		/usr/bin/
 cp test_esc/test_esc				/usr/bin/
-cp calibrate_esc/calibrate_esc	/usr/bin/
-cp battery_monitor/battery_monitor /usr/bin/
+cp test_imu/test_imu				/usr/bin/
+cp test_motors/test_motors 			/usr/bin/
+cp test_spektrum/test_spektrum 		/usr/bin/
+
+
 cd ../
 chmod 755 /usr/bin/*
 
