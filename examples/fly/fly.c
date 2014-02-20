@@ -34,7 +34,7 @@ int main(){
 	if(initialize_imu(CONTROL_HZ)){
 		return -1;
 	}
-	sleep(3); //let IMU Settle
+	//sleep(3); //let IMU Settle
 	setRED(1);
 	setGRN(0);
 	set_state(PAUSED);
@@ -98,13 +98,13 @@ void* control_loop(void* ptr){
 				set_all_esc(0);
 				setRED(HIGH);
 				setGRN(LOW);
-				printf("Kill Swith Hit\n");
+				printf("Kill Switch Hit\n");
 			}
 			
 			//update controller set points
 			set_point[1]=get_rc_channel(2);
 			set_point[2]=-get_rc_channel(3);
-			set_point[3]= set_point[3] + USER_YAW_RATE*DT*get_rc_channel(4);
+			set_point[3]=set_point[3] + USER_YAW_RATE*DT*get_rc_channel(4);
 
 			//PID Up in Here
 			for(i=0;i<SYSTEM_STATES;i++){
