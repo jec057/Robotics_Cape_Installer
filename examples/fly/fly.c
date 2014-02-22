@@ -2,14 +2,19 @@
 // James Strawson - 2013
 
 #include <robotics_cape.h>
-#define CONTROL_HZ 125	//rate in Hz
-#define DT .008   		//timestep seconds
-#define	SATE_LEN 32		//number of timesteps to retain data
-#define TIP_THRESHOLD 0.8
-#define THETA_REF_MAX 0.4	// Maximum reference theta set point for inner loop
-#define SYSTEM_STATES 4
-#define STATE_HISTORY 2
-#define USER_YAW_RATE 1		// Max rad/s the unit will yaw for the user.
+#define CONTROL_HZ 125		//rate in Hz
+#define DT .008   			//timestep seconds
+#define	SATE_LEN 32			//number of timesteps to retain data
+#define TIP_THRESHOLD 0.4
+//#define THETA_REF_MAX 0.4	// Maximum reference theta set point for inner loop
+#define SYSTEM_STATES 4		// Altitude, Yaw, Pitch, Roll
+#define STATE_HISTORY 2	
+#define USER_YAW_RATE 3		// Max rad/s the unit will yaw for the user.
+#define MAX_COMPONENT 0.3	// Max duty from each roll/pitch/yaw controller
+#define MAX_SETPOINT  0.4	// Max range for setpoint
+#define MAX_THROTTLE  0.5	//maximum value for throttle component before mixing
+#define INT_CUTOFF_TH 0.1	//don't run the integrators below this u[0] value
+
 int on_start_press();
 void* control_loop(void* ptr);
 void* io_loop(void* ptr);
@@ -19,11 +24,12 @@ mpudata_t mpu;
 float x[SYSTEM_STATES][STATE_HISTORY];
 float state_error[SYSTEM_STATES][STATE_HISTORY];
 float set_point[4], integrator[4], derivative[4], u[4], esc[4];
-//control gains, 4 states, 3 gains PID 
-float K[4][3]={{0,  0,  0},
-			   {1,  0,  0},
-			   {1,  0,  0},
-			   {1,  0,  0}};
+//control gains P	I	D 
+float K[4][3]={{.0,  .0,  .0},	// throttle
+			   {.1,   1,  .15},	// roll
+			   {.2,   1,  .07},	// pitch
+			   {.2,   1,  .4}};	// yaw
+			   
 float imu_offset[3]; //stead state error in raw dmp angles set when armed
 
 int main(){
@@ -102,20 +108,23 @@ void* control_loop(void* ptr){
 			}
 			
 			//update controller set points
-			set_point[1]=get_rc_channel(2);
-			set_point[2]=-get_rc_channel(3);
+			set_point[1]=get_rc_channel(2)*MAX_SETPOINT;
+			set_point[2]=-get_rc_channel(3)*MAX_SETPOINT;
 			set_point[3]=set_point[3] + USER_YAW_RATE*DT*get_rc_channel(4);
 
 			//PID Up in Here
 			for(i=0;i<SYSTEM_STATES;i++){
 				state_error[i][0]=set_point[i]-x[i][0];
-				integrator[i]=DT*state_error[i][0] + integrator[i];
+				if(u[0] > INT_CUTOFF_TH){
+					integrator[i]=DT*state_error[i][0] + integrator[i];}
 				derivative[i]=(state_error[i][0]-state_error[i][1])/DT;
 				u[i]=K[i][0]*(state_error[i][0]+K[i][1]*integrator[i]+K[i][2]*derivative[i]);
+				if(u[i]>MAX_COMPONENT) u[i] = MAX_COMPONENT;
+				else if(u[i]<-MAX_COMPONENT) u[i] = -MAX_COMPONENT;
 			}
 			
 			//direct throttle for now
-			u[0] = (get_rc_channel(1)+1)/2;
+			u[0] = ((get_rc_channel(1)+1)/2)*MAX_THROTTLE;
 		
 			// mixing
 			esc[0]=u[0]-u[1]-u[2]-u[3];
@@ -200,11 +209,11 @@ void* io_loop(void* ptr){
 				usleep(100000);
 				if(get_state()==EXITING)
 					break;}
+			setGRN(HIGH);
 			while(get_rc_channel(1)!=-1){ //wait for throttle down
 				usleep(100000);
 				if(get_state()==EXITING)
 				break;}
-			
 			imu_offset[0] = mpu.fusedEuler[VEC3_X]; 
 			imu_offset[1] = mpu.fusedEuler[VEC3_Y]; 
 			imu_offset[2] = mpu.fusedEuler[VEC3_Z]; 
@@ -212,7 +221,6 @@ void* io_loop(void* ptr){
 			printf("ARMED!!\n\n");
 			set_state(RUNNING);
 			setRED(LOW);
-			setGRN(HIGH);
 			break;
 			
 		default:
