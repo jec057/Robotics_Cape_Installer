@@ -1,34 +1,23 @@
-// Program to test Hobby Servo or Brushless Speed controller function
-
+// Program to test Hobby Brushless Speed controller function
+// oscillates output between %0 - %10
+// Hold the START button on the cape or hit Ctrl-C to exit
 // James Strawson - 2013
 
 #include <robotics_cape.h>
-#define LOOP_RATE_HZ 50
-
+#define MAX_DUTY 0.1 //%10, this is often just enough to make the motor spin
+		
 int main(){
-	initialize_cape();
-	// struct neccesary for the nanosleep function
-	//typedef struct timespec	timespec;
-	//timespec t1, t2, t2minust1, sleepRequest, deltaT;
-
-	/*
-	//PWM period is twice loop period so duty updates before next pulse starts
-	int period_ns = (1000000000/LOOP_RATE_HZ)*2;
-	if (set_pwm_period_ns(period_ns)){
-		exit(1);
-	}
-	printf("period set\n");
-	*/
-	printf("setting esc to 0\n");
-	set_esc(1,0);
+	int i;
 	
+	initialize_cape();
+	set_esc(1,0); //this also sets the PWM period for esc/servos
+	printf("\n");
 	sleep(1);
+	
 	//Keep Running until program state changes
-	do{
-		//clock_gettime(CLOCK_MONOTONIC, &t1);  //record the time at the beginning.
-		int i;
-		for(i=1; i<=6; i++){
-			set_esc(i,.1);
+	while(get_state() != EXITING){
+		for(i=1; i<=6; i++){ 
+			set_esc(i,MAX_DUTY);
 		}
 		setGRN(HIGH);
 		printf("\rON ");
@@ -38,21 +27,11 @@ int main(){
 		for(i=1; i<=6; i++){
 			set_esc(i,0);
 		}
-		
 		printf("\rOFF");
 		fflush(stdout);
 		setGRN(LOW);
 		sleep(1);
-		
-	
-		//Sleep for the necessary time to maintain 200hz
-		// clock_gettime(CLOCK_MONOTONIC, &t2);
-		// t2minust1 = diff(t1, t2);
-		// sleepRequest = diff(t2minust1, deltaT);
-		// nanosleep(&sleepRequest, NULL);
-	}while(get_state() != EXITING);
-	
-	kill_esc();
+	}
 	cleanup_cape();
 	return 0;
 }
