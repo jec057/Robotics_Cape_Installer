@@ -3,13 +3,10 @@
 	
 	James Strawson 2014
 */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <SimpleGPIO.h>
-
-
 
 //Critical Max voltages of packs used to detect number of cells in pack
 #define CELL_MAX			4.4		//set higher than actual to detect num cells
@@ -27,7 +24,6 @@
 #define LED_2	88
 #define LED_3	87
 #define LED_4	89
-
 
 FILE *AIN6_fd;
 int raw_adc;
@@ -61,90 +57,92 @@ int main(){
 		// times 11 for the voltage divider, divide by 1000 to go from mv to V
 		pack_voltage= (float)raw_adc*11.0/1000.0; 
 		
-		// detect number of cells in pack
-		// may fail with over-discharged pack
-		if (pack_voltage>CELL_MAX*4){
-			printf("Voltage too High, use 2S-4S pack\n");
-			return -1;
-		}
-		else if(pack_voltage>CELL_MAX*3){
-			num_cells = 4;
-		}
-		else if(pack_voltage>CELL_MAX*2){
-			num_cells = 3;
-		}
-		else {
-			num_cells = 2;
-		}
-		
-		cell_voltage = pack_voltage/num_cells;
-		
-		//set LEDs on battery indicator
 		if(pack_voltage<VOLTAGE_DISCONNECT){
 			gpio_set_value(LED_1,LOW);
 			gpio_set_value(LED_2,LOW);
 			gpio_set_value(LED_3,LOW);
 			gpio_set_value(LED_4,LOW);
 			shutdown_counter = 0;
+			num_cells = 0;
+			printf("\rbattery disconnected");
+			fflush(stdout);
 		}
-		else if(cell_voltage<VOLTAGE_SHUTDOWN){
-			//the user left their BBB on
-			//shutdown to protect battery after time period
-			shutdown_counter ++;
-			if(shutdown_counter>SHUTDOWN_WAIT*SAMPLES_PER_SECOND){
-				shutdown_counter = 0;
-				printf("going for shutdown!\n");
-				system("shutdown -P now");
-			}
-		}
-		else if(cell_voltage>VOLTAGE_FULL){
-			gpio_set_value(LED_1,HIGH);
-			gpio_set_value(LED_2,HIGH);
-			gpio_set_value(LED_3,HIGH);
-			gpio_set_value(LED_4,HIGH);
-			shutdown_counter = 0;
-		}
-		else if(cell_voltage>VOLTAGE_75){
-			gpio_set_value(LED_1,LOW);
-			gpio_set_value(LED_2,HIGH);
-			gpio_set_value(LED_3,HIGH);
-			gpio_set_value(LED_4,HIGH);
-			shutdown_counter = 0;
-		}
-		else if(cell_voltage>VOLTAGE_50){
-			gpio_set_value(LED_1,LOW);
-			gpio_set_value(LED_2,LOW);
-			gpio_set_value(LED_3,HIGH);
-			gpio_set_value(LED_4,HIGH);
-			shutdown_counter = 0;
-		}
-		else if(cell_voltage>VOLTAGE_25){
-			gpio_set_value(LED_1,LOW);
-			gpio_set_value(LED_2,LOW);
-			gpio_set_value(LED_3,LOW);
-			gpio_set_value(LED_4,HIGH);
-			shutdown_counter = 0;
-		}
+		
+		// detect number of cells in pack
+		// may fail with over-discharged pack
 		else{
-			//blink battery LEDs to warn extremely low battery
-			gpio_set_value(LED_1,toggle);
-			gpio_set_value(LED_2,toggle);
-			gpio_set_value(LED_3,toggle);
-			gpio_set_value(LED_4,toggle);
-			if(toggle){
-				toggle = 0;
+			if (pack_voltage>CELL_MAX*4){
+				printf("Voltage too High, use 2S-4S pack\n");
+				return -1;
+			}
+			else if(pack_voltage>CELL_MAX*3){
+				num_cells = 4;
+			}
+			else if(pack_voltage>CELL_MAX*2){
+				num_cells = 3;
+			}
+			else {
+				num_cells = 2;
+			}
+			
+			cell_voltage = pack_voltage/num_cells;
+			
+			if(cell_voltage<VOLTAGE_SHUTDOWN){
+				//the user left their BBB on
+				//shutdown to protect battery after time period
+				shutdown_counter ++;
+				if(shutdown_counter>SHUTDOWN_WAIT*SAMPLES_PER_SECOND){
+					shutdown_counter = 0;
+					printf("going for shutdown!\n");
+					system("shutdown -P now");
+				}
+			}
+			else if(cell_voltage>VOLTAGE_FULL){
+				gpio_set_value(LED_1,HIGH);
+				gpio_set_value(LED_2,HIGH);
+				gpio_set_value(LED_3,HIGH);
+				gpio_set_value(LED_4,HIGH);
+				shutdown_counter = 0;
+			}
+			else if(cell_voltage>VOLTAGE_75){
+				gpio_set_value(LED_1,LOW);
+				gpio_set_value(LED_2,HIGH);
+				gpio_set_value(LED_3,HIGH);
+				gpio_set_value(LED_4,HIGH);
+				shutdown_counter = 0;
+			}
+			else if(cell_voltage>VOLTAGE_50){
+				gpio_set_value(LED_1,LOW);
+				gpio_set_value(LED_2,LOW);
+				gpio_set_value(LED_3,HIGH);
+				gpio_set_value(LED_4,HIGH);
+				shutdown_counter = 0;
+			}
+			else if(cell_voltage>VOLTAGE_25){
+				gpio_set_value(LED_1,LOW);
+				gpio_set_value(LED_2,LOW);
+				gpio_set_value(LED_3,LOW);
+				gpio_set_value(LED_4,HIGH);
+				shutdown_counter = 0;
 			}
 			else{
-				toggle = 1;
+				//blink battery LEDs to warn extremely low battery
+				gpio_set_value(LED_1,toggle);
+				gpio_set_value(LED_2,toggle);
+				gpio_set_value(LED_3,toggle);
+				gpio_set_value(LED_4,toggle);
+				if(toggle){
+					toggle = 0;
+				}
+				else{
+					toggle = 1;
+				}
 			}
+			printf("\r%dS  %0.2fV  %0.2fV   ", num_cells, pack_voltage, cell_voltage);
+			fflush(stdout);
 		}
-		
-		
-		printf("\r%dS  %0.2fV  %0.2fV   ", num_cells, pack_voltage, cell_voltage);
-		fflush(stdout);
-		//check once per second
+		//check periodically
 		usleep(1000000/SAMPLES_PER_SECOND);
 	}
-	
 	return 0;
 }
