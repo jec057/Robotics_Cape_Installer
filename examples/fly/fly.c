@@ -9,10 +9,10 @@
 //#define THETA_REF_MAX 0.4	// Maximum reference theta set point for inner loop
 #define SYSTEM_STATES 4		// Altitude, Yaw, Pitch, Roll
 #define STATE_HISTORY 2	
-#define USER_YAW_RATE 3		// Max rad/s the unit will yaw for the user.
+#define USER_YAW_RATE 4		// Max rad/s the unit will yaw for the user.
 #define MAX_COMPONENT 0.3	// Max duty from each roll/pitch/yaw controller
 #define MAX_SETPOINT  0.4	// Max range for setpoint
-#define MAX_THROTTLE  0.5	//maximum value for throttle component before mixing
+#define MAX_THROTTLE  0.6	//maximum value for throttle component before mixing
 #define INT_CUTOFF_TH 0.1	//don't run the integrators below this u[0] value
 
 int on_start_press();
@@ -26,10 +26,10 @@ float state_error[SYSTEM_STATES][STATE_HISTORY];
 float set_point[4], integrator[4], derivative[4], u[4], esc[4];
 //control gains P	I	D 
 float K[4][3]={{.0,  .0,  .0},	// throttle
-			   {.1,   1,  .15},	// roll
-			   {.2,   1,  .07},	// pitch
+			   {.08,  1.5,  .15},	// roll
+			   {.15,  1.5,  .15},	// pitch
 			   {.2,   1,  .4}};	// yaw
-			   
+			    
 float imu_offset[3]; //stead state error in raw dmp angles set when armed
 
 int main(){
