@@ -2,35 +2,32 @@
 // James Strawson - 2013
 
 #include <robotics_cape.h>
+int i;
 
 int main(){
 	initialize_cape();
 	
-	set_esc(1,0);
+	set_esc(1,0); //this also sets the pwm period for servo/esc use
 	
-	printf("make sure the 3-pin PWM connector from each ESCs is connected\n");
-	printf("to the cape.\n");
-	printf("Before continuing, disconnect propellers or gears from your\n");
-	printf("brushless motors and disconnect power from the ESCs\n");
-	printf("\n");
-	printf("to continue, press the cape START button then apply power to the ESCs\n");
-	
+	printf("\nDISCONNECT PROPELLERS FROM MOTORS\n");
+	printf("DISCONNECT POWER FROM ESCS\n");
+	printf("press start to continue\n");
 	
 	while(get_start_button() == LOW){
 		usleep(10000);
 	}
 	setGRN(HIGH);
+	
 	//set everything to full throttle to define upper bound
-	int i;
 	for(i=1; i<=6; i++){
 		set_esc(i,1);
 	}
+	
 	sleep(1);
 	
-	
-	printf("\nstarting calibration, apply power to ESCs\n");
-	printf("then press start again to complete calibration\n");
-	//printf("you should hear some more beeps then silence\n");
+	printf("\n");
+	printf("Now reapply power to the ESCs.\n");
+	printf("Press the start button after the ESCs chirp\n");
 	
 	while(get_start_button() == LOW){
 		usleep(10000);
@@ -41,32 +38,10 @@ int main(){
 		set_esc(i,0);
 	}
 	
-	sleep(3);
-	//Keep Running until program state changes
+	sleep(2);
 	
-	do{
-		//clock_gettime(CLOCK_MONOTONIC, &t1);  //record the time at the beginning.
-		
-		for(i=1; i<=6; i++){
-			set_esc(i,.1);
-		}
-		setGRN(HIGH);
-		printf("\rON ");
-		fflush(stdout);
-		sleep(1);
-		
-		for(i=1; i<=6; i++){
-			set_esc(i,0);
-		}
-		printf("\rOFF");
-		fflush(stdout);
-		setGRN(LOW);
-		sleep(1);
-		
-	}while(get_state() != EXITING);
-	
-	
-	kill_esc();
+	printf("\nCalibration complete, closing.\n");
+
 	cleanup_cape();
 	return 0;
 }
