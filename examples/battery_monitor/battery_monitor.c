@@ -9,14 +9,14 @@
 #include <SimpleGPIO.h>
 
 //Critical Max voltages of packs used to detect number of cells in pack
-#define CELL_MAX			4.4		//set higher than actual to detect num cells
+#define CELL_MAX			4.25		//set higher than actual to detect num cells
 #define VOLTAGE_FULL		4.0		//minimum V to consider battery full
 #define VOLTAGE_75			3.75	
 #define VOLTAGE_50			3.65
 #define VOLTAGE_25			3.6	
-#define VOLTAGE_SHUTDOWN 	3.3		// When to shut down to prevent over discharge.
+#define VOLTAGE_SHUTDOWN 	3.4		// When to shut down to prevent over discharge.
 #define VOLTAGE_DISCONNECT	2		// Threshold for detecting disconnected battery
-#define SHUTDOWN_WAIT		5		// Seconds votlage must me too low before shutting down
+#define SHUTDOWN_WAIT		2		// Seconds votlage must me too low before shutting down
 #define SAMPLES_PER_SECOND	2		//check voltage twice a second, use integers
 
 // gpio number is first digit *32 plus second digit
