@@ -2,8 +2,8 @@
 // James Strawson - 2013
 
 #include <robotics_cape.h>
-#define CONTROL_HZ 125		// Run the main control loop at this rate
-#define DT .008   			// timestep seconds MUST MATCH CONTROL_HZ
+#define CONTROL_HZ 200		// Run the main control loop at this rate
+#define DT .005   			// timestep seconds MUST MATCH CONTROL_HZ
 #define	SATE_LEN 32			// number of timesteps to retain data
 #define TIP_THRESHOLD 0.6	// Kill propellers if it goes into a roll
 //#define THETA_REF_MAX 0.4	// Maximum reference theta set point for inner loop
@@ -26,8 +26,8 @@ float state_error[SYSTEM_STATES][STATE_HISTORY];
 float set_point[4], integrator[4], derivative[4], u[4], esc[4];
 //control gains P	I	D 
 float K[4][3]={{.0,  .0,  .0},	// throttle
-			   {.08,  .8,  .15},// roll
-			   {.15,  .8,  .15},// pitch 
+			   {.08,  .2,  .2}, // roll
+			   {.12,  .3,  .2}, // pitch 
 			   {.2,   1,  .4}};	// yaw
 			    
 float imu_offset[3]; //stead state error in raw angles set when armed
