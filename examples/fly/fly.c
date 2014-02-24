@@ -2,18 +2,18 @@
 // James Strawson - 2013
 
 #include <robotics_cape.h>
-#define CONTROL_HZ 125		//rate in Hz
-#define DT .008   			//timestep seconds
-#define	SATE_LEN 32			//number of timesteps to retain data
-#define TIP_THRESHOLD 0.4
+#define CONTROL_HZ 125		// Run the main control loop at this rate
+#define DT .008   			// timestep seconds MUST MATCH CONTROL_HZ
+#define	SATE_LEN 32			// number of timesteps to retain data
+#define TIP_THRESHOLD 0.6	// Kill propellers if it goes into a roll
 //#define THETA_REF_MAX 0.4	// Maximum reference theta set point for inner loop
 #define SYSTEM_STATES 4		// Altitude, Yaw, Pitch, Roll
 #define STATE_HISTORY 2	
 #define USER_YAW_RATE 4		// Max rad/s the unit will yaw for the user.
 #define MAX_COMPONENT 0.3	// Max duty from each roll/pitch/yaw controller
 #define MAX_SETPOINT  0.4	// Max range for setpoint
-#define MAX_THROTTLE  0.6	//maximum value for throttle component before mixing
-#define INT_CUTOFF_TH 0.1	//don't run the integrators below this u[0] value
+#define MAX_THROTTLE  0.6	// maximum value for throttle component before mixing
+#define INT_CUTOFF_TH 0.1	// prevent integrators from running unless flying
 
 int on_start_press();
 void* control_loop(void* ptr);
@@ -26,11 +26,11 @@ float state_error[SYSTEM_STATES][STATE_HISTORY];
 float set_point[4], integrator[4], derivative[4], u[4], esc[4];
 //control gains P	I	D 
 float K[4][3]={{.0,  .0,  .0},	// throttle
-			   {.08,  1.5,  .15},	// roll
-			   {.15,  1.5,  .15},	// pitch
+			   {.08,  .8,  .15},// roll
+			   {.15,  .8,  .15},// pitch 
 			   {.2,   1,  .4}};	// yaw
 			    
-float imu_offset[3]; //stead state error in raw dmp angles set when armed
+float imu_offset[3]; //stead state error in raw angles set when armed
 
 int main(){
 	//Initialize
@@ -40,7 +40,6 @@ int main(){
 	if(initialize_imu(CONTROL_HZ)){
 		return -1;
 	}
-	//sleep(3); //let IMU Settle
 	setRED(1);
 	setGRN(0);
 	set_state(PAUSED);
@@ -80,7 +79,6 @@ void* control_loop(void* ptr){
 	deltaT.tv_nsec = (int)(1000000000/CONTROL_HZ);
 	memset(&mpu, 0, sizeof(mpudata_t));
 	int i;
-	
 	do{
 		clock_gettime(CLOCK_MONOTONIC, &beginTime);  //record the time at the beginning.
 		mpu9150_read(&mpu);
@@ -95,9 +93,9 @@ void* control_loop(void* ptr){
 		x[2][0] = -mpu.fusedEuler[VEC3_Y] + imu_offset[1];
 		x[3][0] = -mpu.fusedEuler[VEC3_Z] + imu_offset[2];
 		
-
 		switch (get_state()){
 		case RUNNING:	
+		
 			//check for kill switch
 			if(get_rc_channel(6)==1){
 				set_state(PAUSED);
@@ -111,7 +109,7 @@ void* control_loop(void* ptr){
 			set_point[1]=get_rc_channel(2)*MAX_SETPOINT;
 			set_point[2]=-get_rc_channel(3)*MAX_SETPOINT;
 			set_point[3]=set_point[3] + USER_YAW_RATE*DT*get_rc_channel(4);
-
+			
 			//PID Up in Here
 			for(i=0;i<SYSTEM_STATES;i++){
 				state_error[i][0]=set_point[i]-x[i][0];
@@ -125,7 +123,7 @@ void* control_loop(void* ptr){
 			
 			//direct throttle for now
 			u[0] = ((get_rc_channel(1)+1)/2)*MAX_THROTTLE;
-		
+			
 			// mixing
 			esc[0]=u[0]-u[1]-u[2]-u[3];
 			esc[1]=u[0]+u[1]-u[2]+u[3];
@@ -137,7 +135,6 @@ void* control_loop(void* ptr){
 			break;
 			
 		case PAUSED:
-			
 			break;
 			
 		default:
@@ -164,28 +161,22 @@ void* io_loop(void* ptr){
 				setRED(HIGH);
 				setGRN(LOW);
 			}
-			
 			printf("\rx: "); //print state
 			for(i=0; i<SYSTEM_STATES; i++){
 				printf("%0.2f ", x[i][0]);
 			}
-			
 			printf(" set: "); //print controller setpoint
 			for(i=0; i<4; i++){
 				printf("%0.2f ", set_point[i]);
 			}
-			
 			// printf(" RC: "); //print RC Radio Inputs
 			// for(i=0; i<4; i++){
 				// printf("%0.2f ", get_rc_channel(i));
 			// }
-			
 			printf(" u: ");//print control outputs u
 			for(i=0; i<4; i++){
 				printf("%0.2f ", u[i]);
 			}
-			
-			
 			fflush(stdout);		
 			break;
 			
