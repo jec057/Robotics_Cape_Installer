@@ -4,12 +4,12 @@
 #include "c_i2c.h"
 #include "MPU6050.h"
 
-#define DT 0.005       	//5ms loop (200hz)
+#define DT 0.005       		// 5ms loop (200hz)
 #define WHEEL_RADIUS 0.035  // meters
-#define TRACK_WIDTH 0.1 	//meters, width between contact patches
+#define TRACK_WIDTH 0.1 	// meters, width between contact patches
 #define PI 3.14159265358
 
-#define LEAN_THRESHOLD 0.6  //radians lean before killing motors
+#define LEAN_THRESHOLD 0.6  // radians lean before killing motors
 #define THETA_REF_MAX 0.5	// Maximum reference theta set point for inner loop
 #define START_THRESHOLD 0.2 // how close to vertical before it will start balancing
 
@@ -17,7 +17,7 @@
 #define THETA_MIX_TC  2   // t_seconds timeconstant on filter
 const float HP_CONST = THETA_MIX_TC/(THETA_MIX_TC + DT);
 const float LP_CONST = DT/(THETA_MIX_TC + DT);
-float thetaTrim = 0;
+
 
 // i2c declarations
 static i2c_t MPU6050;
@@ -26,36 +26,41 @@ static i2c_t* pi2c = &MPU6050;
 // Estimator variables
 float xAccel, zAccel, yGyro, yGyroOffset, accLP, gyroHP, theta;
 
-//enocder Variables
+// Encoder Variables
 long int encoderCountsL, encoderCountsR;
 long int encoderOffsetL, encoderOffsetR;
 
-///Controller & State Variables ///
-float prescaler = 0.7;
-float theta, phi[2];
-float phiRef; //system state
-float oldTheta;
+// Controller & State Variables
+float prescaler = 0.7;  // SLC prescaler to correct inner loop steady state error
+float theta, phi[2], eTheta[3], ePhi[2], u[3], thetaRef[2], phiRef;
 
-float eTheta[3];
-float ePhi[2];
-float u[3];
-float thetaRef[2];
-
-//Steering controller
-float Gamma[2];
-float gammaRef, torqueSplit;
-float kTurn = 1.0;
+//Turn controller
+float kpTurn = 1.0;
+float kdTurn = 0.1;
 float dutyLeft, dutyRight;
+float gammaRef, torqueSplit,Gamma[2], eGamma[2];
 
-// Control constants
+// Balancing Control constants
+// Discrete time transfer function constants
 float numD1[] = {-6.0977, 11.6581, -5.5721};
 float denD1[] = {1.0000,   -1.6663,    0.6663};
 float numD2[] = {0.0987,   -0.0985};
 float denD2[] = {1.0000,   -0.9719};
-float kTrim = -0.2;  // outer loop integrator constant
-float kInner = 1.8; //
-float kOuter = 2.2; //
+float kInner = 1.8;	 // inner loop feedback gain
+float kOuter = 2.2;	 // outer loop feedback gain
 
+// Remote control things for driving around
+#define MAXTURNRATE 3	
+#define MAXDRIVERATE 10	
+float turnRate, driveRate; //radians per second
+
+// Theta trim to correct for imbalance
+float kTrim = -0.2;  // outer loop integrator constant
+float thetaTrim = 0;
+
+// Other
+#define VNOMINAL 7.4 //tune controller assuming 7.4v battery
+float vBatt=VNOMINAL; //battery voltage for scaling motor inputs.
 
 // start I2C communication with MPU-9150/6050
 void i2cStart(){
@@ -97,8 +102,8 @@ float initializeEstimator(){
 		//printf("gy: %f  ax: %f  az: %f\n", (float)gy, (float)ax, (float)ay);            
 	}
 		
-	yGyroOffset = yGyroCount/100;		//offset to correct for steady-state gyro error
-    	accLP = -atan2(zAccelCount, -xAccelCount); 		//initialize accLP so filter begins at correct theta
+	yGyroOffset = yGyroCount/100;		// offset to correct for steady-state gyro error
+    accLP = -atan2(zAccelCount, -xAccelCount); 	// initialize accLP at current theta
 	theta=accLP;
 	printf("yGyroOffset = %f\n", yGyroOffset);
 	printf("Theta = %f\n", theta);
@@ -127,7 +132,6 @@ float Complementary_Filter(){
 
 	// diagnostic print to console
 	//printf("gyroHP: %f accelLP: %f theta: %f Phi: %f\n", gyroHP, accLP, gyroHP+accLP, phi); 
-
 	return (gyroHP+accLP)+thetaTrim;
 }
 
@@ -147,6 +151,7 @@ void* slow_loop_func(void* ptr){
 	do{
 		switch (get_state()){
 		case RUNNING:	
+			vBatt = getBattVoltage();
 			break;
 			
 		case PAUSED:
@@ -166,8 +171,18 @@ void* slow_loop_func(void* ptr){
 		default:
 			break;
 		}
-		printf("\rtheta: %0.2f phi: %0.2f gamma: %0.2f ", theta, phi[0], Gamma[0]);
-		printf("u[0]: %0.2f  ", u[0]);
+		printf("\rtheta: %0.2f", theta);
+		printf(" u: %0.2f", u[0]);
+		printf(" phi: %0.2f", phi[0]);
+		printf(" phiRef: %0.2f", phiRef);
+		printf(" gamma: %0.2f", Gamma[0]);
+		printf(" gammaRef: %0.2f", gammaRef);
+		printf(" thetaRef: %0.2f", thetaRef[0]);
+		printf(" trim: %0.2f", thetaTrim);
+		printf(" driveRate: %0.2f", driveRate);
+		printf(" turnRate: %0.2f", turnRate);
+		printf("   ");
+		
 		fflush(stdout);
 		usleep(100000); //check buttons at roughly 10 hz,not very accurate)
 	}while(get_state() != EXITING);
@@ -198,10 +213,12 @@ void* control_loop_func(void* ptr){
 		int encoder_dif;
 		encoder_dif = (encoderCountsL-encoderOffsetL)-(encoderCountsR-encoderOffsetR);
 		Gamma[1] = Gamma[0];
-		Gamma[0]= WHEEL_RADIUS*2*(encoder_dif)*PI/(352*TRACK_WIDTH);
+		Gamma[0] = WHEEL_RADIUS*2*(encoder_dif)*PI/(352*TRACK_WIDTH);
+
 		
 		switch (get_state()){
 		case RUNNING:
+			// check for a tipover
 			if(fabs(theta)>LEAN_THRESHOLD){
 				set_state(PAUSED);
 				kill_pwm();
@@ -217,37 +234,58 @@ void* control_loop_func(void* ptr){
 				setGRN(LOW);
 				break;
 			}
-		
-			// step difference equation forward
-			ePhi[1]=ePhi[0];
-			thetaRef[1]=thetaRef[0];
-			eTheta[2]=eTheta[1]; eTheta[1]=eTheta[0];
-			u[2]=u[1]; u[1]=u[0];
+			//check for new RC data
+			if(get_rc_new_flag()){	
+				// Read normalized (+-1) inputs from RC radio right stick
+				float turnInput = -get_rc_channel(2);	// pos turn right
+				float driveInput = get_rc_channel(3);	// pos go forward
+				//Check for bad data with 0.1 fudge
+				if(fabs(driveInput)>1.1 || fabs(turnInput)>1.1){
+					driveRate = 0;
+					turnRate = 0;
+				}
+				else{ //scale rates appropriately 
+					driveRate = driveInput*MAXDRIVERATE;
+					turnRate = turnInput*MAXTURNRATE;
+				}
+			}
+			//move the controller set points based on user input
+			phiRef = phiRef+driveRate*DT;
+			gammaRef = gammaRef+turnRate*DT;
   
+			// evaluate outer loop controller D2z
+			ePhi[1]=ePhi[0];
 			ePhi[0] = phiRef-phi[0];
+			thetaRef[1]=thetaRef[0];
 			thetaRef[0] = kOuter*(numD2[0]*ePhi[0] + numD2[1]*ePhi[1]) - denD2[1]*thetaRef[1];
+			//check saturation of outer loop
+			if(thetaRef[0]>THETA_REF_MAX) thetaRef[0]=THETA_REF_MAX;
+			else if(thetaRef[0]<-THETA_REF_MAX) thetaRef[0]=-THETA_REF_MAX;
+					
+			//evaluate inner loop controller D1z
+			eTheta[2]=eTheta[1]; eTheta[1]=eTheta[0];
+			eTheta[0] = (prescaler * thetaRef[0]) - theta;
+			u[2]=u[1]; u[1]=u[0];
+			u[0] = kInner*(numD1[0]*eTheta[0]+numD1[1]*eTheta[1] + numD1[2]*eTheta[2]) - denD1[1]*u[1] - denD1[2]*u[2]; 
+			//check saturation of inner loop
+			if(u[0]>1)	u[0]=1;	
+			else if(u[0]<-1) u[0]=-1;
+			
 			
 			//integrate the reference theta to correct for imbalance or sensor error
-			thetaTrim += kTrim * thetaRef[0]*DT;
-
-			if(thetaRef[0]>THETA_REF_MAX){thetaRef[0]=THETA_REF_MAX;}
-			else if(thetaRef[0]<-THETA_REF_MAX){thetaRef[0]=-THETA_REF_MAX;}
-
-			eTheta[0] = (prescaler * thetaRef[0]) - theta;
-			u[0] = kInner*(numD1[0]*eTheta[0]+numD1[1]*eTheta[1] + numD1[2]*eTheta[2]) - denD1[1]*u[1] - denD1[2]*u[2]; 
+			if(thetaRef == 0)thetaTrim += kTrim * thetaRef[0]*DT;
 			
-			if(u[0]>1){
-				u[0]=1;
-			}
-			else if(u[0]<-1){
-				u[0]=-1;
-			}
-   
-			torqueSplit = kTurn*(gammaRef - Gamma[0]);
-			dutyLeft = u[0]+torqueSplit;
-			dutyRight = u[0]-torqueSplit;			
-			set_motor(1,-dutyRight);
-			set_motor(3,dutyLeft); //minus because motor is flipped on chassis
+			//steering controller
+			eGamma[1] = eGamma[0];
+			eGamma[0] = gammaRef - Gamma[0];
+			torqueSplit = kpTurn*(eGamma[0]+kdTurn*(eGamma[0]-eGamma[1]));
+			dutyLeft = (u[0]+torqueSplit)*VNOMINAL/vBatt;
+			dutyRight = (u[0]-torqueSplit)*VNOMINAL/vBatt;			
+			
+			// Final output of controller
+			set_motor(1,-dutyRight); //motor is flipped on chassis
+			set_motor(3,dutyLeft); 
+			
 			break;
 			
 		case PAUSED:
@@ -258,6 +296,8 @@ void* control_loop_func(void* ptr){
 			eTheta[2]=0; eTheta[1]=0; eTheta[0]=0;
 			u[2]=0; u[1]=0; u[0]=0;
 			phi[0]=0; phi[1]=0;
+			eGamma[0]=0; eGamma[1]=0;
+			gammaRef=0; phiRef=0;
 			break;
 			
 		default:
@@ -278,6 +318,7 @@ void* control_loop_func(void* ptr){
 //////////////////////////////////////////////////////////////////
 int main(){
 	initialize_cape();
+	initialize_spektrum();
 	set_start_pressed_func(&on_start_press); //hold select for 2 seconds to close program
 	i2cStart();
 	initializeEstimator();
